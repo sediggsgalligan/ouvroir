@@ -36,7 +36,7 @@
   }
 
   // ---- main editor -----------------------------------------------------
-  function Editor({ active, onChange, text, setText, paletteHint, gutter = 'right' }) {
+  function Editor({ active, onChange, text, setText, paletteHint, gutter = 'right', showAlphabet = true }) {
     const taRef = useRef(null);
     const engine = useMemo(() => buildEngine(active), [active]);
     const { shaking, why, whyKey, shake } = useShake();
@@ -113,7 +113,16 @@
           </div>
           {gutter === 'right' && <Gutter lines={gutterLines} />}
         </div>
-        <AlphabetStrip allowed={allowed} />
+        {showAlphabet && <AlphabetStrip allowed={allowed} />}
+        <div className="ouv-actions">
+          <div className="ouv-actions-meta">
+            {text.trim() ? `${text.trim().split(/\s+/).length} words · ${lines.length} lines` : 'unwritten'}
+          </div>
+          <div className="ouv-actions-buttons">
+            <button className="ouv-btn ouv-btn-ghost" type="button">Save</button>
+            <button className="ouv-btn ouv-btn-primary" type="button">Publish</button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -145,14 +154,71 @@
   // ---- constraint pill list (active constraints shown above editor) ----
   function ActivePills({ active, onRemove }) {
     if (!active.length) return null;
+    const [openUid, setOpenUid] = useState(null);
+    const expanded = openUid ? active.find(a => a.uid === openUid) : null;
+
     return (
-      <div className="ouv-pills">
-        {active.map(a => (
-          <span key={a.uid} className="ouv-pill">
-            <span className="ouv-pill-title">{a.instance.title}</span>
-            <button className="ouv-pill-x" onClick={() => onRemove(a.uid)} aria-label="Remove">×</button>
-          </span>
-        ))}
+      <div className="ouv-pills-wrap">
+        <div className="ouv-pills">
+          {active.map(a => {
+            const isOpen = openUid === a.uid;
+            return (
+              <span key={a.uid} className={`ouv-pill${isOpen ? ' is-open' : ''}`}>
+                <button
+                  className="ouv-pill-body"
+                  onClick={() => setOpenUid(isOpen ? null : a.uid)}
+                  title="View details"
+                >
+                  <span className="ouv-pill-title">{a.instance.title}</span>
+                  {a.community && (
+                    <span className="ouv-pill-by"> · @{a.community.author}</span>
+                  )}
+                  <span className="ouv-pill-caret">{isOpen ? '▾' : '›'}</span>
+                </button>
+                <button
+                  className="ouv-pill-x"
+                  onClick={() => { onRemove(a.uid); if (isOpen) setOpenUid(null); }}
+                  aria-label="Remove"
+                >×</button>
+              </span>
+            );
+          })}
+        </div>
+        {expanded && (
+          <ConstraintDetails entry={expanded} onClose={() => setOpenUid(null)} />
+        )}
+      </div>
+    );
+  }
+
+  function ConstraintDetails({ entry, onClose }) {
+    return (
+      <div className="ouv-detail">
+        <div className="ouv-detail-row">
+          <div className="ouv-detail-label">Description</div>
+          <div className="ouv-detail-text">{entry.instance.description}</div>
+        </div>
+        {entry.regex ? (
+          <div className="ouv-detail-row">
+            <div className="ouv-detail-label">Regex</div>
+            <CopyableRegex source={entry.regex.source} flags={entry.regex.flags || ''} />
+          </div>
+        ) : (
+          <div className="ouv-detail-row">
+            <div className="ouv-detail-label">Type</div>
+            <div className="ouv-detail-text ouv-detail-muted">
+              Predicate constraint — enforced as code, not a regex.
+            </div>
+          </div>
+        )}
+        {entry.community && (
+          <div className="ouv-detail-row">
+            <div className="ouv-detail-label">Author</div>
+            <div className="ouv-detail-text">
+              @{entry.community.author} · <em>{entry.community.name}</em>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
