@@ -50,6 +50,299 @@
     return line.split(/\s+/).filter(Boolean).reduce((a, w) => a + countSyllables(w), 0);
   }
 
+  function makeChainConstraint() {
+    return {
+      kind: 'chain',
+      title: 'Word Chain', // Add this
+      description: 'Each word must start with the last letter of the previous word.', // Add this
+      canInsert(ctx, ch) {
+        if (!ctx.prevWord) return { ok: true };
+        const lastLetterOfPrev = ctx.prevWord.slice(-1).toLowerCase();
+        if (ctx.currentWord.length === 0) {
+          if (ch.toLowerCase() !== lastLetterOfPrev) {
+            return { ok: false, why: `Must start with "${lastLetterOfPrev}"` };
+          }
+        }
+        return { ok: true };
+      },
+      allowedLetters(ctx) { // Add this
+        if (!ctx.prevWord) return null;
+        if (ctx.currentWord.length === 0) {
+          return new Set([ctx.prevWord.slice(-1).toLowerCase()]);
+        }
+        return null;
+      },
+      lineFeedback(ctx) { return null; } // Add this if missing
+    };
+  }
+
+  // function makeScriptedConstraint({ title, description, hooks = {} }) { // Added = {} default
+  //   // Now, if 'hooks' is undefined, it defaults to an empty object
+  //   // Object.entries({}) will return [], avoiding the crash
+  //   const validators = {};
+    
+  //   if (hooks) {
+  //     for (const [hookName, logic] of Object.entries(hooks)) {
+  //       validators[hookName] = new Function('ctx', 'ch', `
+  //         const { currentWord, currentLine, prevWord, lineIdx, wordIdx } = ctx;
+  //         ${logic}
+  //       `);
+  //     }
+  //   }
+
+  //   return {
+  //     kind: 'scripted',
+  //     title: title || 'Scripted Constraint',
+  //     description: description || 'Custom script',
+      
+  //     // Defensive calling: check if validator exists before calling
+  //     canInsert: (ctx, ch) => {
+  //       if (!validators.canInsert) return { ok: true };
+  //       try {
+  //         return validators.canInsert(ctx, ch) ? { ok: true } : { ok: false, why: 'Input rejected' };
+  //       } catch (e) { console.error(e); return { ok: true }; }
+  //     },
+      
+  //     canBreakSpace: (ctx) => {
+  //       if (!validators.canBreakSpace) return { ok: true };
+  //       try {
+  //         return validators.canBreakSpace(ctx) ? { ok: true } : { ok: false, why: 'Space rejected' };
+  //       } catch (e) { console.error(e); return { ok: true }; }
+  //     },
+      
+  //     canBreakLine: (ctx) => {
+  //       if (!validators.canBreakLine) return { ok: true };
+  //       try {
+  //         return validators.canBreakLine(ctx) ? { ok: true } : { ok: false, why: 'Line break rejected' };
+  //       } catch (e) { console.error(e); return { ok: true }; }
+  //     }
+  //   };
+  // }
+
+// function makeScriptedConstraint({ title, description, hooks = {} }) {
+//   const validators = {};
+
+//   // ... inside makeScriptedConstraint ...
+
+//   function serializeCtx(ctx) {
+//     return {
+//       currentWord: String(ctx.currentWord || ''),
+//       currentLine: String(ctx.currentLine || ''),
+//       prevWord: String(ctx.prevWord || ''),
+//       lineIdx: Number(ctx.lineIdx || 0),
+//       wordIdx: Number(ctx.wordIdx || 0),
+//       colIdx: Number(ctx.colIdx || 0) // <--- ADD THIS
+//     };
+//   }
+
+//   function createSyncSandbox(logicCode) {
+//     try {
+//       return new Function(
+//         'ctx', 'ch',
+//         `
+//         // Expose colIdx inside the sandbox destructuring
+//         const { currentWord, currentLine, prevWord, lineIdx, wordIdx, colIdx } = ctx;
+        
+//         const window = undefined;
+//         const globalThis = undefined;
+//         const document = undefined;
+//         const fetch = undefined;
+
+//         try {
+//           const __user_expr__ = function() {
+//             ${logicCode}
+//           };
+//           return !!__user_expr__();
+//         } catch (e) {
+//           return false;
+//         }
+//         `
+//       );
+//     } catch (e) {
+//       return () => true;
+//     }
+//   }
+
+//   // A tiny, strict, synchronous scope jailer
+//   // function createSyncSandbox(logicCode) {
+//   //   try {
+//   //     // We explicitly shadow every common dangerous global by mapping them to undefined.
+//   //     // This isolates the LLM's logic context to ONLY our allowed variables.
+//   //     return new Function(
+//   //       'ctx', 'ch',
+//   //       `
+//   //       const { currentWord, currentLine, prevWord, lineIdx, wordIdx } = ctx;
+        
+//   //       // Block access to the real environment
+//   //       const window = undefined;
+//   //       const globalThis = undefined;
+//   //       const document = undefined;
+//   //       const fetch = undefined;
+//   //       const XMLHttpRequest = undefined;
+//   //       const setTimeout = undefined;
+//   //       const setInterval = undefined;
+
+//   //       try {
+//   //         // Wrap in a function execution block
+//   //         const __user_expr__ = function() {
+//   //           ${logicCode}
+//   //         };
+//   //         return !!__user_expr__();
+//   //       } catch (e) {
+//   //         console.error("Scripted constraint runtime error:", e);
+//   //         return false;
+//   //       }
+//   //       `
+//   //     );
+//   //   } catch (compileError) {
+//   //     console.error("Failed to safely compile LLM hook script:", compileError);
+//   //     return () => true; // Fall open if compilation crashes
+//   //   }
+//   // }
+
+//   if (hooks) {
+//     for (const [hookName, logic] of Object.entries(hooks)) {
+//       if (logic) {
+//         validators[hookName] = createSyncSandbox(logic);
+//       }
+//     }
+//   }
+
+//   // // Pure snapshot dictionary helper
+//   // function serializeCtx(ctx) {
+//   //   return {
+//   //     currentWord: String(ctx.currentWord || ''),
+//   //     currentLine: String(ctx.currentLine || ''),
+//   //     prevWord: String(ctx.prevWord || ''),
+//   //     lineIdx: Number(ctx.lineIdx || 0),
+//   //     wordIdx: Number(ctx.wordIdx || 0)
+//   //   };
+//   // }
+
+//   return {
+//     kind: 'scripted',
+//     title: title || 'Scripted Constraint',
+//     description: description || 'Custom script',
+    
+//     // Everything is now fully synchronous. Input blocks instantly!
+//     canInsert: (ctx, ch) => {
+//       if (!validators.canInsert) return { ok: true };
+//       const safeCtx = serializeCtx(ctx);
+//       const ok = validators.canInsert(safeCtx, String(ch));
+//       return ok ? { ok: true } : { ok: false, why: 'Rejected by rule: Every word must start with a vowel.' };
+//     },
+    
+//     canBreakSpace: (ctx) => {
+//       if (!validators.canBreakSpace) return { ok: true };
+//       const safeCtx = serializeCtx(ctx);
+//       const ok = validators.canBreakSpace(safeCtx, ' ');
+//       return ok ? { ok: true } : { ok: false, why: 'Space rejected' };
+//     },
+    
+//     canBreakLine: (ctx) => {
+//       if (!validators.canBreakLine) return { ok: true };
+//       const safeCtx = serializeCtx(ctx);
+//       const ok = validators.canBreakLine(safeCtx, '\n');
+//       return ok ? { ok: true } : { ok: false, why: 'Line break rejected' };
+//     }
+//   };
+// }
+
+function makeScriptedConstraint({ title, description, hooks = {} }) {
+  const validators = {};
+
+  function createSyncSandbox(logicCode) {
+    try {
+      return new Function(
+        'ctx', 'ch',
+        `
+        const { currentWord, currentLine, prevWord, lineIdx, wordIdx, colIdx } = ctx;
+        const window = undefined;
+        const globalThis = undefined;
+        const document = undefined;
+
+        try {
+          const __user_expr__ = function() {
+            ${logicCode}
+          };
+          return __user_expr__(); // Don't force boolean cast here so feedback can return strings
+        } catch (e) {
+          return false;
+        }
+        `
+      );
+    } catch (e) {
+      return () => null;
+    }
+  }
+
+  if (hooks) {
+    for (const [hookName, logic] of Object.entries(hooks)) {
+      if (logic) {
+        validators[hookName] = createSyncSandbox(logic);
+      }
+    }
+  }
+
+  function serializeCtx(ctx) {
+    return {
+      currentWord: String(ctx.currentWord || ''),
+      currentLine: String(ctx.currentLine || ''),
+      prevWord: String(ctx.prevWord || ''),
+      lineIdx: Number(ctx.lineIdx || 0),
+      wordIdx: Number(ctx.wordIdx || 0),
+      colIdx: Number(ctx.colIdx || 0)
+    };
+  }
+
+  return {
+    kind: 'scripted',
+    title: title || 'Scripted Constraint',
+    description: description || 'Custom script',
+    
+    canInsert: (ctx, ch) => {
+      if (!validators.canInsert) return { ok: true };
+      const safeCtx = serializeCtx(ctx);
+      const ok = validators.canInsert(safeCtx, String(ch));
+      return ok ? { ok: true } : { ok: false, why: 'Input rejected' };
+    },
+    
+    canBreakSpace: (ctx) => {
+      if (!validators.canBreakSpace) return { ok: true };
+      const safeCtx = serializeCtx(ctx);
+      const ok = validators.canBreakSpace(safeCtx, ' ');
+      return ok ? { ok: true } : { ok: false, why: 'Space rejected' };
+    },
+    
+    canBreakLine: (ctx) => {
+      if (!validators.canBreakLine) return { ok: true };
+      const safeCtx = serializeCtx(ctx);
+      const ok = validators.canBreakLine(safeCtx, '\n');
+      return ok ? { ok: true } : { ok: false, why: 'Line break rejected' };
+    },
+
+    // ADD THIS: Runs constantly to verify text state after deletions/pastes
+    lineFeedback: (ctx, i) => {
+      if (!validators.lineFeedback) return null;
+      
+      // Target the specific line index being drawn/evaluated
+      const targetLine = ctx.lines[i] || '';
+      if (!targetLine.trim()) return null; // Ignore blank lines
+      
+      const safeCtx = serializeCtx(ctx);
+      // Adjust safeCtx slightly to reflect the line being evaluated
+      safeCtx.currentLine = targetLine; 
+
+      try {
+        const errorMsg = validators.lineFeedback(safeCtx, '');
+        return errorMsg || null; // Returns warning string if invalid, null if safe
+      } catch (e) {
+        return null;
+      }
+    }
+  };
+}
+
   // ---- context helpers --------------------------------------------------
   function makeCtx(text, caret) {
     const before = text.slice(0, caret);
@@ -299,6 +592,21 @@
       title: 'Custom',
       params: { source, flags },
       description: description || `Pattern: /${source}/${flags}`,
+      allowedLetters(ctx) {
+        if (!re) return null;
+        
+        const allowed = new Set();
+        const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
+        
+        // Test every letter to see if it could possibly be valid
+        // given the current prefix
+        for (const char of alphabet) {
+          if (re.test(ctx.linePrefix + char)) {
+            allowed.add(char);
+          }
+        }
+        return allowed;
+      },
       _regex: re,
       _err: re ? null : 'Invalid pattern',
       canInsert(ctx, ch) {
@@ -329,14 +637,32 @@
         }
         return { ok: true };
       },
+      // canBreakLine(text, caret) {
+      //   const ctx = makeCtx(text, caret);
+      //   for (const c of constraints) {
+      //     // Snowball: enter is also a word boundary
+      //     if (typeof c.canBreakSpace === 'function') {
+      //       const r = c.canBreakSpace(ctx);
+      //       if (!r.ok) return r;
+      //     }
+      //     if (typeof c.canBreakLine === 'function') {
+      //       const r = c.canBreakLine(ctx);
+      //       if (!r.ok) return r;
+      //     }
+      //   }
+      //   return { ok: true };
+      // },
       canBreakLine(text, caret) {
         const ctx = makeCtx(text, caret);
         for (const c of constraints) {
-          // Snowball: enter is also a word boundary
-          if (typeof c.canBreakSpace === 'function') {
+          // Only run canBreakSpace if the constraint IS a Snowball
+          // You can check this via the 'kind' property
+          if (c.kind === 'snowball' && typeof c.canBreakSpace === 'function') {
             const r = c.canBreakSpace(ctx);
             if (!r.ok) return r;
           }
+          
+          // Always run canBreakLine for everyone
           if (typeof c.canBreakLine === 'function') {
             const r = c.canBreakLine(ctx);
             if (!r.ok) return r;
@@ -344,20 +670,21 @@
         }
         return { ok: true };
       },
+      // Inside constraints.js, update the `combine` function:
       allowedLetters(text, caret) {
         const ctx = makeCtx(text, caret);
-        // Intersection of all constraint allowances
         let allowed = null;
         for (const c of constraints) {
-          if (typeof c.allowedLetters === 'function') {
-            const a = c.allowedLetters(ctx);
-            if (a) {
-              if (!allowed) allowed = new Set(a);
-              else for (const x of [...allowed]) if (!a.has(x)) allowed.delete(x);
-            }
+          // ADD THIS DEFENSIVE CHECK
+          if (!c || typeof c.allowedLetters !== 'function') continue; 
+          
+          const a = c.allowedLetters(ctx);
+          if (a) {
+            if (!allowed) allowed = new Set(a);
+            else for (const x of [...allowed]) if (!a.has(x)) allowed.delete(x);
           }
         }
-        return allowed; // null = all allowed
+        return allowed;
       },
       lineFeedback(text, caret, i) {
         const ctx = makeCtx(text, caret);
@@ -446,11 +773,28 @@
   ];
 
   // ---- expose ---------------------------------------------------------
+//   global.Ouvroir = {
+//     ALPHA, VOWELS, NO_ASC_DESC,
+//     countSyllables, lineSyllables, makeCtx,
+//     makeLipogram, makeUnivocalism, makePrisoner, makeSnowball,
+//     makeHaiku, makeAbecedarian, makePalindrome, makeRegexConstraint,
+//     combine, FORMS, makeChainConstraint, makeScriptedConstraint
+//   };
+// })(typeof window !== 'undefined' ? window : globalThis);
+
+// ---- expose ---------------------------------------------------------
   global.Ouvroir = {
     ALPHA, VOWELS, NO_ASC_DESC,
     countSyllables, lineSyllables, makeCtx,
     makeLipogram, makeUnivocalism, makePrisoner, makeSnowball,
     makeHaiku, makeAbecedarian, makePalindrome, makeRegexConstraint,
-    combine, FORMS,
+    combine, FORMS, makeChainConstraint, makeScriptedConstraint
   };
 })(typeof window !== 'undefined' ? window : globalThis);
+
+// ADD THIS EXTENSION AT THE VERY BOTTOM OF THE FILE:
+// This bridges your legacy IIFE setup cleanly into modern ES module imports
+if (typeof Ouvroir !== 'undefined') {
+  var makeScriptedConstraint = Ouvroir.makeScriptedConstraint;
+}
+export { makeScriptedConstraint };

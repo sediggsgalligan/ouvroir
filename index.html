@@ -3,17 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
   <title>Ouvroir — constrained poetry editor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=Cormorant+Garamond:ital,wght@0,400..700;1,400..700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="ouvroir/ouvroir.css" />
+
+  <!-- Inside the <head> tag of Ouvroir.html -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  
   <style>
     html, body, #root { height: 100%; margin: 0; }
     body { background: #f0eee9; color: #29261b; font-family: "Public Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-  </style>
+    </style>
 </head>
 <body style="font-family: &quot;Public Sans&quot;">
+  <!-- Add this wrapper target right above your sidebar brand name element inside <body> -->
+  <!-- <div class="ouv-auth-container" style="padding: 10px 0; border-bottom: 1px dashed rgba(0,0,0,0.1); margin-bottom: 10px;">
+    <div id="google_signin_button"></div>
+  </div> -->
   <div id="root"></div>
 
   <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>

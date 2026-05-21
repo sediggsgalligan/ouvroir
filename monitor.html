@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oulipian Sandbox Workspace</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #fafafa;
+      color: #222;
+    }
+    .card {
+      background: white;
+      border: 1px solid #e1e4e8;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    h2 { margin-top: 0; color: #111; }
+    pre {
+      background: #272822;
+      color: #f8f8f2;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+    button {
+      background: #0070f3;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover { background: #0060d0; }
+    .test-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      align-items: center;
+    }
+    .badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .badge.pass { background: #e6ffed; color: #22863a; }
+    .badge.fail { background: #ffeef0; color: #cb2431; }
+  </style>
+</head>
+<body>
+
+  <h1>Oulipian LLM Security & Validation Lab</h1>
+
+  <div class="card">
+    <h2>Interactive Lab Logger</h2>
+    <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+      Type or execute text maneuvers inside the area below. Grab the generated array snippet from the code block to construct a regression test case.
+    </p>
+    <div id="textarea-root"></div>
+    <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+      <button id="clear-logger-btn">Reset Workspace Logger</button>
+      <button id="copy-log-btn">Copy Test Array</button>
+    </div>
+    <div id="copy-notice" style="color: #22863a; font-size: 12px; display: none; margin-top: 5px; text-align: right;">Copied code snippet!</div>
+  </div>
+
+  <div class="card">
+    <h2>Automated Regression Validation Matrices</h2>
+    <p style="color: #666; font-size: 14px;">Checks historical logic bugs we addressed against the active engine rules:</p>
+    <div id="test-matrix-root"></div>
+  </div>
+
+  <script type="module">
+    import { createMonitoredTextarea } from './ouvroir/MonitoredTextarea.js';
+    import { runEditSequence, PRESET_TESTS } from './ouvroir/test-suite.js';
+
+    let currentLog = [];
+
+    // Initialize Interactive Textarea 
+    const widget = createMonitoredTextarea({
+      containerEl: document.getElementById('textarea-root'),
+      onLogChange: (history) => {
+        currentLog = history;
+      }
+    });
+
+    document.getElementById('clear-logger-btn').addEventListener('click', () => {
+      widget.clear();
+      currentLog = [];
+    });
+
+    document.getElementById('copy-log-btn').addEventListener('click', () => {
+      const snippet = `const edits = ${JSON.stringify(currentLog)};`;
+      navigator.clipboard.writeText(snippet).then(() => {
+        const notice = document.getElementById('copy-notice');
+        notice.style.display = 'block';
+        setTimeout(() => notice.style.display = 'none', 2000);
+      });
+    });
+
+    // Run Automated Matrices 
+    const matrixRoot = document.getElementById('test-matrix-root');
+    PRESET_TESTS.forEach(testCase => {
+      const report = runEditSequence(testCase.constraint, testCase.history);
+      
+      let isPassing = false;
+      if (testCase.expectedOk && report.ok) {
+        isPassing = true;
+      } else if (!testCase.expectedOk && !report.ok && report.failedAt === testCase.expectedFailureAt) {
+        isPassing = true;
+      }
+
+      const row = document.createElement('div');
+      row.className = 'test-row';
+      row.innerHTML = `
+        <div>
+          <strong>${testCase.name}</strong>
+          <div style="font-size:11px; color:#666; margin-top:3px;">
+            ${isPassing ? 'Behaved exactly as expected' : `Error: Expected outcome mismatched (Got ok: ${report.ok}, Failed at: ${report.failedAt || 'N/A'})`}
+          </div>
+        </div>
+        <div>
+          <span class="badge ${isPassing ? 'pass' : 'fail'}">${isPassing ? 'PASSED' : 'FAILED'}</span>
+        </div>
+      `;
+      matrixRoot.appendChild(row);
+    });
+  </script>
+
+</body>
+</html>

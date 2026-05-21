@@ -157,6 +157,13 @@
     const [openUid, setOpenUid] = useState(null);
     const expanded = openUid ? active.find(a => a.uid === openUid) : null;
 
+    // Example of how to safely map:
+    {active.filter(c => c && c.instance).map((item, index) => (
+      <div key={index}>
+        {item.instance.title} {/* Now safe! */}
+      </div>
+    ))}
+
     return (
       <div className="ouv-pills-wrap">
         <div className="ouv-pills">
@@ -169,7 +176,9 @@
                   onClick={() => setOpenUid(isOpen ? null : a.uid)}
                   title="View details"
                 >
-                  <span className="ouv-pill-title">{a.instance.title}</span>
+                  <span className="ouv-pill-title">
+                    {a.instance?.title ?? 'Unknown Constraint'}
+                  </span>
                   {a.community && (
                     <span className="ouv-pill-by"> · @{a.community.author}</span>
                   )}
