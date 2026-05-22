@@ -76,53 +76,40 @@
     };
   }
 
-  // function makeScriptedConstraint({ title, description, hooks = {} }) { // Added = {} default
-  //   // Now, if 'hooks' is undefined, it defaults to an empty object
-  //   // Object.entries({}) will return [], avoiding the crash
+  // function makeScriptedConstraint({ title, description, hooks = {} }) {
+  //   // We consolidate the developer logic down to a single master rule runner
   //   const validators = {};
 
-  //   if (hooks) {
-  //     for (const [hookName, logic] of Object.entries(hooks)) {
-  //       validators[hookName] = new Function('ctx', 'ch', `
-  //         const { currentWord, currentLine, prevWord, lineIdx, wordIdx } = ctx;
-  //         ${logic}
-  //       `);
+  //   function createSyncSandbox(logicCode) {
+  //     try {
+  //       return new Function(
+  //         'ctx', 'ch', 'op',
+  //         `
+  //       const { currentWord, currentLine, prevWord, lineIdx, wordIdx, colIdx } = ctx;
+  //       const window = undefined;
+  //       const globalThis = undefined;
+  //       const document = undefined;
+
+  //       try {
+  //         const __user_expr__ = function() {
+  //           ${logicCode}
+  //         };
+  //         // Expects a return string: 'valid', 'not-yet-satisfied', or 'reject'
+  //         return __user_expr__() || 'valid'; 
+  //       } catch (e) {
+  //         return 'reject'; // Fail securely into a rejected state on runtime errors
+  //       }
+  //       `
+  //       );
+  //     } catch (e) {
+  //       return () => 'valid'; // Fall open if compilation engine breaks
   //     }
   //   }
 
-  //   return {
-  //     kind: 'scripted',
-  //     title: title || 'Scripted Constraint',
-  //     description: description || 'Custom script',
-
-  //     // Defensive calling: check if validator exists before calling
-  //     canInsert: (ctx, ch) => {
-  //       if (!validators.canInsert) return { ok: true };
-  //       try {
-  //         return validators.canInsert(ctx, ch) ? { ok: true } : { ok: false, why: 'Input rejected' };
-  //       } catch (e) { console.error(e); return { ok: true }; }
-  //     },
-
-  //     canBreakSpace: (ctx) => {
-  //       if (!validators.canBreakSpace) return { ok: true };
-  //       try {
-  //         return validators.canBreakSpace(ctx) ? { ok: true } : { ok: false, why: 'Space rejected' };
-  //       } catch (e) { console.error(e); return { ok: true }; }
-  //     },
-
-  //     canBreakLine: (ctx) => {
-  //       if (!validators.canBreakLine) return { ok: true };
-  //       try {
-  //         return validators.canBreakLine(ctx) ? { ok: true } : { ok: false, why: 'Line break rejected' };
-  //       } catch (e) { console.error(e); return { ok: true }; }
-  //     }
-  //   };
-  // }
-
-  // function makeScriptedConstraint({ title, description, hooks = {} }) {
-  //   const validators = {};
-
-  //   // ... inside makeScriptedConstraint ...
+  //   // Initialize the single validator string payload hook
+  //   if (hooks && hooks.validate) {
+  //     validators.validate = createSyncSandbox(hooks.validate);
+  //   }
 
   //   function serializeCtx(ctx) {
   //     return {
@@ -131,119 +118,224 @@
   //       prevWord: String(ctx.prevWord || ''),
   //       lineIdx: Number(ctx.lineIdx || 0),
   //       wordIdx: Number(ctx.wordIdx || 0),
-  //       colIdx: Number(ctx.colIdx || 0) // <--- ADD THIS
+  //       colIdx: Number(ctx.colIdx || 0)
   //     };
   //   }
-
-  //   function createSyncSandbox(logicCode) {
-  //     try {
-  //       return new Function(
-  //         'ctx', 'ch',
-  //         `
-  //         // Expose colIdx inside the sandbox destructuring
-  //         const { currentWord, currentLine, prevWord, lineIdx, wordIdx, colIdx } = ctx;
-
-  //         const window = undefined;
-  //         const globalThis = undefined;
-  //         const document = undefined;
-  //         const fetch = undefined;
-
-  //         try {
-  //           const __user_expr__ = function() {
-  //             ${logicCode}
-  //           };
-  //           return !!__user_expr__();
-  //         } catch (e) {
-  //           return false;
-  //         }
-  //         `
-  //       );
-  //     } catch (e) {
-  //       return () => true;
-  //     }
-  //   }
-
-  //   // A tiny, strict, synchronous scope jailer
-  //   // function createSyncSandbox(logicCode) {
-  //   //   try {
-  //   //     // We explicitly shadow every common dangerous global by mapping them to undefined.
-  //   //     // This isolates the LLM's logic context to ONLY our allowed variables.
-  //   //     return new Function(
-  //   //       'ctx', 'ch',
-  //   //       `
-  //   //       const { currentWord, currentLine, prevWord, lineIdx, wordIdx } = ctx;
-
-  //   //       // Block access to the real environment
-  //   //       const window = undefined;
-  //   //       const globalThis = undefined;
-  //   //       const document = undefined;
-  //   //       const fetch = undefined;
-  //   //       const XMLHttpRequest = undefined;
-  //   //       const setTimeout = undefined;
-  //   //       const setInterval = undefined;
-
-  //   //       try {
-  //   //         // Wrap in a function execution block
-  //   //         const __user_expr__ = function() {
-  //   //           ${logicCode}
-  //   //         };
-  //   //         return !!__user_expr__();
-  //   //       } catch (e) {
-  //   //         console.error("Scripted constraint runtime error:", e);
-  //   //         return false;
-  //   //       }
-  //   //       `
-  //   //     );
-  //   //   } catch (compileError) {
-  //   //     console.error("Failed to safely compile LLM hook script:", compileError);
-  //   //     return () => true; // Fall open if compilation crashes
-  //   //   }
-  //   // }
-
-  //   if (hooks) {
-  //     for (const [hookName, logic] of Object.entries(hooks)) {
-  //       if (logic) {
-  //         validators[hookName] = createSyncSandbox(logic);
-  //       }
-  //     }
-  //   }
-
-  //   // // Pure snapshot dictionary helper
-  //   // function serializeCtx(ctx) {
-  //   //   return {
-  //   //     currentWord: String(ctx.currentWord || ''),
-  //   //     currentLine: String(ctx.currentLine || ''),
-  //   //     prevWord: String(ctx.prevWord || ''),
-  //   //     lineIdx: Number(ctx.lineIdx || 0),
-  //   //     wordIdx: Number(ctx.wordIdx || 0)
-  //   //   };
-  //   // }
 
   //   return {
   //     kind: 'scripted',
   //     title: title || 'Scripted Constraint',
-  //     description: description || 'Custom script',
+  //     description: description || 'Custom 3-state evaluation script',
 
-  //     // Everything is now fully synchronous. Input blocks instantly!
   //     canInsert: (ctx, ch) => {
-  //       if (!validators.canInsert) return { ok: true };
+  //       if (!validators.validate) return { ok: true };
   //       const safeCtx = serializeCtx(ctx);
-  //       const ok = validators.canInsert(safeCtx, String(ch));
-  //       return ok ? { ok: true } : { ok: false, why: 'Rejected by rule: Every word must start with a vowel.' };
+
+  //       // Speculatively project what the context variables will look like *after* insertion
+  //       safeCtx.currentLine += ch;
+  //       if (ch === ' ' || ch === '\n') {
+  //         safeCtx.prevWord = safeCtx.currentWord;
+  //         safeCtx.currentWord = '';
+  //         safeCtx.wordIdx += 1;
+  //       } else {
+  //         safeCtx.currentWord += ch;
+  //       }
+  //       safeCtx.colIdx += ch.length;
+
+  //       const state = validators.validate(safeCtx, String(ch), 'insert');
+
+  //       if (state === 'reject') {
+  //         return { ok: false, why: 'insertion-reject: Operation breaks script rules.' };
+  //       }
+  //       return { ok: true };
   //     },
 
   //     canBreakSpace: (ctx) => {
-  //       if (!validators.canBreakSpace) return { ok: true };
+  //       if (!validators.validate) return { ok: true };
   //       const safeCtx = serializeCtx(ctx);
-  //       const ok = validators.canBreakSpace(safeCtx, ' ');
-  //       return ok ? { ok: true } : { ok: false, why: 'Space rejected' };
+
+  //       // Project a structural space separation boundary modification state
+  //       safeCtx.currentLine += ' ';
+  //       safeCtx.prevWord = safeCtx.currentWord;
+  //       safeCtx.currentWord = '';
+  //       safeCtx.wordIdx += 1;
+  //       safeCtx.colIdx += 1;
+
+  //       const state = validators.validate(safeCtx, ' ', 'insert');
+
+  //       if (state === 'reject') {
+  //         return { ok: false, why: 'insertion-reject: Space boundaries locked.' };
+  //       }
+  //       return { ok: true };
   //     },
 
   //     canBreakLine: (ctx) => {
-  //       if (!validators.canBreakLine) return { ok: true };
+  //       if (!validators.validate) return { ok: true };
   //       const safeCtx = serializeCtx(ctx);
-  //       const ok = validators.canBreakLine(safeCtx, '\n');
-  //       return ok ? { ok: true } : { ok: false, why: 'Line break rejected' };
+
+  //       // Project carriage line return changes
+  //       safeCtx.lineIdx += 1;
+  //       safeCtx.wordIdx = 0;
+  //       safeCtx.colIdx = 0;
+  //       safeCtx.prevWord = '';
+  //       safeCtx.currentWord = '';
+  //       safeCtx.currentLine = '';
+
+  //       const state = validators.validate(safeCtx, '\n', 'insert');
+
+  //       if (state === 'reject') {
+  //         return { ok: false, why: 'insertion-reject: Line breaks locked.' };
+  //       }
+  //       return { ok: true };
+  //     },
+
+  //     // Asynchronous Post-Editing Auditor handles deletion calculations safely
+  //     lineFeedback: (ctx, i) => {
+  //       if (!validators.validate) return null;
+
+  //       const targetLine = ctx.lines[i] || '';
+  //       // Build a mock rendering footprint of the line state following deletion manipulation
+  //       const safeCtx = serializeCtx(ctx);
+  //       safeCtx.currentLine = targetLine;
+  //       safeCtx.lineIdx = i;
+
+  //       // Recompute localized word pointers inside this specific line snapshot
+  //       const words = targetLine.trim().split(/\s+/).filter(Boolean);
+  //       safeCtx.wordIdx = words.length;
+  //       safeCtx.currentWord = words[words.length - 1] || '';
+  //       safeCtx.prevWord = words[words.length - 2] || '';
+
+  //       try {
+  //         const state = validators.validate(safeCtx, '', 'delete');
+  //         if (state === 'reject') {
+  //           return 'deletion-reject! Changes break validation structures.';
+  //         }
+  //         if (state === 'not-yet-satisfied') {
+  //           return 'not-yet-satisfied · Incomplete structural pattern';
+  //         }
+  //         return null; // State remains cleanly valid, clear warning states
+  //       } catch (e) {
+  //         return null;
+  //       }
+  //     }
+  //   };
+  // }
+
+  // function makeScriptedConstraint({ title, description, hooks = {} }) {
+  //   const validators = {};
+
+  //   function createSyncSandbox(logicCode, argPattern) {
+  //     try {
+  //       return new Function(
+  //         argPattern,
+  //         `
+  //     const window = undefined;
+  //     const globalThis = undefined;
+  //     const document = undefined;
+
+  //     try {
+  //       const __user_expr__ = function() {
+  //         ${logicCode}
+  //       };
+  //       return __user_expr__();
+  //     } catch (e) {
+  //       return 'reject'; // Fail secure on runtime errors
+  //     }
+  //     `
+  //       );
+  //     } catch (e) {
+  //       return () => 'valid';
+  //     }
+  //   }
+
+  //   if (hooks && hooks.validateToken) {
+  //     validators.validateToken = createSyncSandbox(hooks.validateToken, 'token,ctx');
+  //   }
+  //   // This now explicitly expects 'valid', 'not-yet-satisfied', or 'reject'
+  //   if (hooks && hooks.validateStructure) {
+  //     validators.validateStructure = createSyncSandbox(hooks.validateStructure, 'words,ctx');
+  //   }
+
+  //   function serializeCtx(ctx, lineOverride = null) {
+  //     const targetLine = lineOverride !== null ? lineOverride : (ctx.currentLine || '');
+  //     const words = targetLine.trim().split(/\s+/).filter(Boolean);
+  //     return {
+  //       currentWord: String(ctx.currentWord || ''),
+  //       currentLine: String(targetLine),
+  //       prevWord: String(ctx.prevWord || ''),
+  //       lineIdx: Number(ctx.lineIdx || 0),
+  //       wordIdx: Number(words.length),
+  //       colIdx: Number(ctx.colIdx || 0)
+  //     };
+  //   }
+
+  //   return {
+  //     kind: 'scripted',
+  //     title: title || 'Scripted Constraint',
+  //     description: description || 'Two-tier dynamic state validation script',
+
+  //     // Tier 1: Character-level hard validation filter
+  //     canInsert: (ctx, ch) => {
+  //       const safeCtx = serializeCtx(ctx);
+  //       if (validators.validateToken && ch !== ' ' && ch !== '\n') {
+  //         const nextWord = safeCtx.currentWord + ch;
+  //         if (!validators.validateToken(nextWord, safeCtx)) {
+  //           return { ok: false, why: 'insertion-reject: Character banned.' };
+  //         }
+  //       }
+  //       return { ok: true };
+  //     },
+
+  //     // Tier 2: Structural validation. We ONLY block if it explicitly returns 'reject'.
+  //     canBreakSpace: (ctx) => {
+  //       if (!validators.validateStructure) return { ok: true };
+
+  //       const safeCtx = serializeCtx(ctx);
+  //       const currentWords = safeCtx.currentLine.trim().split(/\s+/).filter(Boolean);
+
+  //       const structuralState = validators.validateStructure(currentWords, safeCtx);
+  //       if (structuralState === 'reject') {
+  //         return { ok: false, why: 'insertion-reject: Hard limit boundary exceeded.' };
+  //       }
+  //       // 'valid' and 'not-yet-satisfied' both allow the space bar to function!
+  //       return { ok: true };
+  //     },
+
+  //     // Line breaks require absolute compliance. You cannot leave a line on 'not-yet-satisfied'.
+  //     canBreakLine: (ctx) => {
+  //       if (!validators.validateStructure) return { ok: true };
+
+  //       const safeCtx = serializeCtx(ctx);
+  //       const currentWords = safeCtx.currentLine.trim().split(/\s+/).filter(Boolean);
+
+  //       const structuralState = validators.validateStructure(currentWords, safeCtx);
+  //       if (structuralState !== 'valid') {
+  //         return { ok: false, why: 'insertion-reject: Structural conditions must be satisfied to change lines.' };
+  //       }
+  //       return { ok: true };
+  //     },
+
+  //     lineFeedback: (ctx, i) => {
+  //       const targetLine = ctx.lines[i] || '';
+  //       if (!targetLine.trim()) return null;
+
+  //       const safeCtx = serializeCtx(ctx, targetLine);
+  //       safeCtx.lineIdx = i;
+  //       const currentWords = targetLine.trim().split(/\s+/).filter(Boolean);
+
+  //       if (validators.validateToken) {
+  //         for (const token of currentWords) {
+  //           if (!validators.validateToken(token, safeCtx)) return 'deletion-reject! Character rule violation.';
+  //         }
+  //       }
+
+  //       if (validators.validateStructure) {
+  //         const structuralState = validators.validateStructure(currentWords, safeCtx);
+  //         if (structuralState === 'reject') return 'structural-reject! Constraint broken permanently.';
+  //         if (structuralState === 'not-yet-satisfied') return 'not-yet-satisfied · Incomplete layout structure';
+  //       }
+
+  //       return null;
   //     }
   //   };
   // }
@@ -251,46 +343,48 @@
   function makeScriptedConstraint({ title, description, hooks = {} }) {
     const validators = {};
 
-    function createSyncSandbox(logicCode) {
+    function createSyncSandbox(logicCode, argPattern) {
       try {
         return new Function(
-          'ctx', 'ch',
+          argPattern,
           `
-        const { currentWord, currentLine, prevWord, lineIdx, wordIdx, colIdx } = ctx;
-        const window = undefined;
-        const globalThis = undefined;
-        const document = undefined;
+      const window = undefined;
+      const globalThis = undefined;
+      const document = undefined;
 
-        try {
-          const __user_expr__ = function() {
-            ${logicCode}
-          };
-          return __user_expr__(); // Don't force boolean cast here so feedback can return strings
-        } catch (e) {
-          return false;
-        }
-        `
+      try {
+        // Pass the arguments cleanly down into the user expression block
+        const __user_expr__ = function(a, b, c) {
+          ${logicCode}
+        };
+        return __user_expr__(arguments[0], arguments[1], arguments[2]);
+      } catch (e) {
+        return 'reject';
+      }
+      `
         );
       } catch (e) {
-        return () => null;
+        return () => 'valid';
       }
     }
 
-    if (hooks) {
-      for (const [hookName, logic] of Object.entries(hooks)) {
-        if (logic) {
-          validators[hookName] = createSyncSandbox(logic);
-        }
-      }
+    if (hooks && hooks.validateToken) {
+      validators.validateToken = createSyncSandbox(hooks.validateToken, 'token,ctx');
+    }
+    // Change 'words,ctx' to 'words,ctx,op' right here:
+    if (hooks && hooks.validateStructure) {
+      validators.validateStructure = createSyncSandbox(hooks.validateStructure, 'words,ctx,op');
     }
 
-    function serializeCtx(ctx) {
+    function serializeCtx(ctx, lineOverride = null) {
+      const targetLine = lineOverride !== null ? lineOverride : (ctx.currentLine || '');
+      const words = targetLine.trim().split(/\s+/).filter(Boolean);
       return {
         currentWord: String(ctx.currentWord || ''),
-        currentLine: String(ctx.currentLine || ''),
+        currentLine: String(targetLine),
         prevWord: String(ctx.prevWord || ''),
         lineIdx: Number(ctx.lineIdx || 0),
-        wordIdx: Number(ctx.wordIdx || 0),
+        wordIdx: Number(words.length),
         colIdx: Number(ctx.colIdx || 0)
       };
     }
@@ -298,47 +392,66 @@
     return {
       kind: 'scripted',
       title: title || 'Scripted Constraint',
-      description: description || 'Custom script',
+      description: description || 'Two-tier dynamic state validation script',
 
       canInsert: (ctx, ch) => {
-        if (!validators.canInsert) return { ok: true };
         const safeCtx = serializeCtx(ctx);
-        const ok = validators.canInsert(safeCtx, String(ch));
-        return ok ? { ok: true } : { ok: false, why: 'Input rejected' };
+        if (validators.validateToken && ch !== ' ' && ch !== '\n') {
+          const nextWord = safeCtx.currentWord + ch;
+          if (!validators.validateToken(nextWord, safeCtx)) {
+            return { ok: false, why: 'insertion-reject' };
+          }
+        }
+        return { ok: true };
       },
 
       canBreakSpace: (ctx) => {
-        if (!validators.canBreakSpace) return { ok: true };
+        if (!validators.validateStructure) return { ok: true };
         const safeCtx = serializeCtx(ctx);
-        const ok = validators.canBreakSpace(safeCtx, ' ');
-        return ok ? { ok: true } : { ok: false, why: 'Space rejected' };
+        const currentWords = safeCtx.currentLine.trim().split(/\s+/).filter(Boolean);
+
+        // Explicitly passes 'space' as the 3rd parameter
+        const structuralState = validators.validateStructure(currentWords, safeCtx, 'space');
+        if (structuralState === 'reject') {
+          return { ok: false, why: 'insertion-reject: Word limit reached.' };
+        }
+        return { ok: true };
       },
 
       canBreakLine: (ctx) => {
-        if (!validators.canBreakLine) return { ok: true };
+        if (!validators.validateStructure) return { ok: true };
         const safeCtx = serializeCtx(ctx);
-        const ok = validators.canBreakLine(safeCtx, '\n');
-        return ok ? { ok: true } : { ok: false, why: 'Line break rejected' };
+        const currentWords = safeCtx.currentLine.trim().split(/\s+/).filter(Boolean);
+
+        // Explicitly passes 'enter' as the 3rd parameter
+        const structuralState = validators.validateStructure(currentWords, safeCtx, 'enter');
+        if (structuralState !== 'valid') {
+          return { ok: false, why: 'insertion-reject: Line incomplete.' };
+        }
+        return { ok: true };
       },
 
-      // ADD THIS: Runs constantly to verify text state after deletions/pastes
       lineFeedback: (ctx, i) => {
-        if (!validators.lineFeedback) return null;
-
-        // Target the specific line index being drawn/evaluated
         const targetLine = ctx.lines[i] || '';
-        if (!targetLine.trim()) return null; // Ignore blank lines
+        if (!targetLine.trim()) return null;
 
-        const safeCtx = serializeCtx(ctx);
-        // Adjust safeCtx slightly to reflect the line being evaluated
-        safeCtx.currentLine = targetLine;
+        const safeCtx = serializeCtx(ctx, targetLine);
+        safeCtx.lineIdx = i;
+        const currentWords = targetLine.trim().split(/\s+/).filter(Boolean);
 
-        try {
-          const errorMsg = validators.lineFeedback(safeCtx, '');
-          return errorMsg || null; // Returns warning string if invalid, null if safe
-        } catch (e) {
-          return null;
+        if (validators.validateToken) {
+          for (const token of currentWords) {
+            if (!validators.validateToken(token, safeCtx)) return 'deletion-reject!';
+          }
         }
+
+        if (validators.validateStructure) {
+          const structuralState = validators.validateStructure(currentWords, safeCtx, 'audit');
+          if (structuralState === 'reject') return 'structural-reject!';
+          if (structuralState === 'not-yet-satisfied') return 'not-yet-satisfied';
+        }
+
+        return null;
       }
     };
   }
