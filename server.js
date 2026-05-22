@@ -2,10 +2,14 @@
 const express = require('express');
 const cors = require('cors');
 const { OAuth2Client } = require('google-auth-library');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(express.json());
 app.use(cors()); // Permits your static frontend domain to execute calls here
+
+const ALLOW_GUESTS = false;
 
 // Configure environments using variables managed safely on Render
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -22,13 +26,26 @@ async function checkGoogleAuth(req, res, next) {
 
   const idToken = authHeader.split(' ')[1];
 
+  if (idToken.startsWith('guest:')) {
+    if (!ALLOW_GUESTS) {
+      return res.status(403).json({ error: 'Guest accounts are disabled. Please sign in.' });
+    }
+    const guestName = idToken.split(':')[1] || 'Guest';
+    req.user = {
+      email: `guest-${guestName.toLowerCase()}@example.com`,
+      name: guestName,
+      given_name: guestName
+    };
+    return next();
+  }
+
   try {
     // Verifies the token structure cryptographically directly against Google's public keys
     const ticket = await googleClient.verifyIdToken({
       idToken: idToken,
       audience: GOOGLE_CLIENT_ID,
     });
-    
+
     const payload = ticket.getPayload();
     req.user = payload; // Passes authenticated email, name metadata forward
     next();
@@ -244,72 +261,77 @@ app.post('/api/generate', checkGoogleAuth, async (req, res) => {
   // ].join('\n');
 
   // const systemInstructions = [
-  //     'You are an expert Oulipian constraint architect.',
-  //     'Return STRICT JSON: {"type": "script", "title": "...", "hooks": {...}}',
-  //     '',
-  //     'RULES FOR HOOKS:',
-  //     '- "canInsert(ctx, ch)": Triggered BEFORE a character is accepted. Use ONLY for absolute placement rules (like line-starters). Never use to block temporary intermediate typing states.',
-  //     '- "canBreakSpace(ctx)": Triggered when user attempts to press SPACE. Use this to validate if a just-finished word meets ending requirements.',
-  //     '- "canBreakLine(ctx)": Triggered when user attempts to press ENTER. Use this to validate if the final state of the line meets requirements.',
-  //     '',
-  //     'CRITICAL: ALLOWING PARTIAL / IN-PROGRESS INPUT',
-  //     'When typing a word like "allow" under an "ends with a vowel" constraint, intermediate states like "al" or "all" do NOT end in a vowel. Do NOT block these inside "canInsert", otherwise the user can never finish typing the word!',
-  //     '- For "Line/Word Ends With X" rules: Allow typing freely in canInsert, but validate the condition inside canBreakSpace (word end) and canBreakLine (line end).',
-  //     '',
-  //     'LOGIC PATTERNS:',
-  //     '1. Line/Word Ending Constraints (e.g., Every line must end with a vowel):',
-  //     '   - canInsert: return true; // Allow intermediate typing states',
-  //     '   - canBreakSpace: return /[aeiou]$/i.test(currentWord);',
-  //     '   - canBreakLine: return /[aeiou]$/i.test(currentLine);',
-  //     '',
-  //     '2. Line-Starting Constraints:',
-  //     '   - canInsert: if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return /^[aeiou]$/i.test(ch); } return true;',
-  //     '',
-  //     'EXAMPLE (Every line must BEGIN and END with a vowel):',
-  //     '{ "type": "script", "title": "Vowel Bookends", "hooks": { ',
-  //     '  "canInsert": "if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return /^[aeiou]$/i.test(ch); } return true;",',
-  //     '  "canBreakSpace": "return true; // Don\'t restrict mid-line spaces unless words specifically must end in vowels",',
-  //     '  "canBreakLine": "return /[aeiou]$/i.test(currentLine);"',
-  //     '} }',
-  //     '',
-  //     'The ctx object already contains lineIdx (the integer index of the current line). Use ctx.lineIdx directly.',
-  //     '',
-  //     'REQUIREMENTS:',
-  //     '1. No markdown, no code fences, no extra prose.',
-  //     '2. Logic strings must be valid JavaScript expressions/statements that return a boolean.',
-  //     '3. Use the variables available in ctx: currentWord, wordIdx, currentLine, colIdx.'
+  //   'You are an expert Oulipian constraint architect.',
+  //   'Return STRICT JSON: {"type": "script", "title": "...", "hooks": {...}}',
+  //   '',
+  //   'RULES FOR HOOKS:',
+  //   '- "canInsert(ctx, ch)": Triggered BEFORE a character is accepted. Use ONLY for absolute placement rules (like line-starters). Never use to block temporary intermediate typing states.',
+  //   '- "canBreakSpace(ctx)": Triggered when user attempts to press SPACE. Use this to validate if a just-finished word meets ending requirements.',
+  //   '- "canBreakLine(ctx)": Triggered when user attempts to press ENTER. Use this to validate if the final state of the line meets requirements.',
+  //   '',
+  //   'CRITICAL: ALLOWING PARTIAL / IN-PROGRESS INPUT',
+  //   'When typing a word like "allow" under an "ends with a vowel" constraint, intermediate states like "al" or "all" do NOT end in a vowel. Do NOT block these inside "canInsert", otherwise the user can never finish typing the word!',
+  //   '- For "Line/Word Ends With X" rules: Allow typing freely in canInsert, but validate the condition inside canBreakSpace (word end) and canBreakLine (line end).',
+  //   '',
+  //   'LOGIC PATTERNS:',
+  //   '1. Line/Word Ending Constraints (e.g., Every line must end with a vowel):',
+  //   '   - canInsert: return true; // Allow intermediate typing states',
+  //   '   - canBreakSpace: return /[aeiou]$/i.test(currentWord);',
+  //   '   - canBreakLine: return /[aeiou]$/i.test(currentLine);',
+  //   '',
+  //   '2. Line-Starting Constraints:',
+  //   '   - canInsert: if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return /^[aeiou]$/i.test(ch); } return true;',
+  //   '',
+  //   'EXAMPLE (Every line must BEGIN and END with a vowel):',
+  //   '{ "type": "script", "title": "Vowel Bookends", "hooks": { ',
+  //   '  "canInsert": "if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return /^[aeiou]$/i.test(ch); } return true;",',
+  //   '  "canBreakSpace": "return true; // Don\'t restrict mid-line spaces unless words specifically must end in vowels",',
+  //   '  "canBreakLine": "return /[aeiou]$/i.test(currentLine);"',
+  //   '} }',
+  //   '',
+  //   'The ctx object already contains lineIdx (the integer index of the current line). Use ctx.lineIdx directly.',
+  //   '',
+  //   'REQUIREMENTS:',
+  //   '1. No markdown, no code fences, no extra prose.',
+  //   '2. Logic strings must be valid JavaScript expressions/statements that return a boolean.',
+  //   '3. Use the variables available in ctx: currentWord, wordIdx, currentLine, colIdx.'
   // ].join('\n');
 
   const systemInstructions = [
-      'You are an expert Oulipian constraint architect.',
-      'Return STRICT JSON: {"type": "script", "title": "...", "hooks": {...}}',
-      '',
-      'RULES FOR HOOKS:',
-      '- "canInsert(ctx, ch)": Validate typed characters before they hit the screen.',
-      '- "canBreakSpace(ctx)": Validate space boundaries.',
-      '- "canBreakLine(ctx)": Validate line breaking constraints.',
-      '- "lineFeedback(ctx)": CONSTANT POST-EDITING AUDITOR. This hook looks at "currentLine" as a whole and returns a short string error message (e.g. "Must start with a vowel") if the line is currently broken due to a backspace, delete, or paste action. Return null if the line is perfectly fine.',
-      '',
-      'CRITICAL: FOOLPROOF DELETION GUARDING',
-      'Users can bypass typing rules by typing valid characters and then deleting them (e.g., typing "oTo" then backspacing the "o").',
-      'To make rules foolproof against backspacing and deletions, ALWAYS implement "lineFeedback" alongside your insertion hooks to inspect the final text layout.',
-      '',
-      'LOGIC PATTERNS:',
-      '1. Line-Starting / Bookend Constraints:',
-      '   - canInsert: if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return /^[aeiou]$/i.test(ch); } return true;',
-      '   - lineFeedback: if (currentLine.length > 0 && !/^[aeiou]/i.test(currentLine)) { return "Must start with a vowel"; } return null;',
-      '',
-      'EXAMPLE (Every line must BEGIN and END with a vowel - 100% immune to deletion tricks):',
-      '{ "type": "script", "title": "Vowel Bookends", "hooks": { ',
-      '  "canInsert": "if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return /^[aeiou]$/i.test(ch); } return true;",',
-      '  "canBreakLine": "return /[aeiou]$/i.test(currentLine);",',
-      '  "lineFeedback": "if (currentLine.length > 0) { if (!/^[aeiou]/i.test(currentLine)) return \\"Doesn\'t start with a vowel\\"; if (!/[aeiou]$/i.test(currentLine)) return \\"Doesn\'t end with a vowel\\"; } return null;"',
-      '} }',
-      '',
-      'REQUIREMENTS:',
-      '1. No markdown, no code fences, no extra prose.',
-      '2. Logic strings must be valid JavaScript expressions/statements.',
-      '3. Use the variables available in ctx: currentWord, wordIdx, currentLine, colIdx.'
+    'You are an expert Oulipian constraint architect.',
+    'Return STRICT JSON: {"type": "script", "title": "...", "hooks": {...}}',
+    '',
+    'RULES FOR HOOKS:',
+    '- "canInsert(ctx, ch)": Validate typed characters before they hit the screen.',
+    '- "canBreakSpace(ctx)": Validate space boundaries.',
+    '- "canBreakLine(ctx)": Validate line breaking constraints.',
+    '- "lineFeedback(ctx)": CONSTANT POST-EDITING AUDITOR. This hook looks at "currentLine" as a whole and returns a short string error message (e.g. "Must start with a vowel") if the line is currently broken due to a backspace, delete, or paste action. Return null if the line is perfectly fine.',
+    '',
+    'CRITICAL: FOOLPROOF DELETION GUARDING',
+    'Users can bypass typing rules by typing valid characters and then deleting them (e.g., typing "oTo" then backspacing the "o").',
+    'To make rules foolproof against backspacing and deletions, ALWAYS implement "lineFeedback" alongside your insertion hooks to inspect the final text layout.',
+    '',
+    'LOGIC PATTERNS:',
+    '1. Line-Starting / Bookend Constraints:',
+    '   - canInsert: if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return /^[aeiou]$/i.test(ch); } return true;',
+    '   - lineFeedback: if (currentLine.length > 0 && !/^[aeiou]/i.test(currentLine)) { return "Must start with a vowel"; } return null;',
+    '2. Word-Level Constraints (e.g., "Every word must be X"):',
+    '   - canInsert: Use currentWord.length to evaluate the incoming character against the target word.Allow non-alpha characters(like spaces) to pass through so typing can continue.',
+    '   - lineFeedback: Split currentLine into an array of words, filtering out empty spaces, and check that EVERY word matches the constraint.',
+    '',
+    'EXAMPLE (Every line must BEGIN and END with a vowel - 100% immune to deletion tricks):',
+    '{ "type": "script", "title": "Vowel Bookends", "hooks": { ',
+    '  "canInsert": "if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return /^[aeiou]$/i.test(ch); } return true;",',
+    '  "canBreakLine": "return /[aeiou]$/i.test(currentLine);",',
+    '  "lineFeedback": "if (currentLine.length > 0) { if (!/^[aeiou]/i.test(currentLine)) return \\"Doesn\'t start with a vowel\\"; if (!/[aeiou]$/i.test(currentLine)) return \\"Doesn\'t end with a vowel\\"; } return null;"',
+    '} }',
+    '',
+    'REQUIREMENTS:',
+    '1. No markdown, no code fences, no extra prose.',
+    '2. Logic strings must be valid JavaScript expressions/statements.',
+    '3. Use the variables available in ctx: currentWord, wordIdx, currentLine, colIdx.',
+    '4. Unless otherwise specified, do not be sensitive to case.',
+    '5. Do not allow additional writing on the same line if further writing cannot fix the constraint (hard blocked), for instance, if word count reached, don\'t allow any new words.'
   ].join('\n');
 
   try {
@@ -330,12 +352,163 @@ app.post('/api/generate', checkGoogleAuth, async (req, res) => {
       })
     });
 
+    console.log('prompt', [
+      { role: 'system', content: systemInstructions },
+      { role: 'user', content: userPrompt }
+    ]);
+
     const data = await response.json();
     console.log('DeepSeek response:', data.choices[0].message);
     res.status(response.status).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Database utilities
+const dbPath = path.join(__dirname, 'db.json');
+
+function readDb() {
+  if (!fs.existsSync(dbPath)) {
+    const initDb = { poems: [], constraints: [], stars: [] };
+    fs.writeFileSync(dbPath, JSON.stringify(initDb, null, 2), 'utf8');
+    return initDb;
+  }
+  try {
+    const data = fs.readFileSync(dbPath, 'utf8');
+    return JSON.parse(data);
+  } catch (e) {
+    console.error('Error reading db.json:', e);
+    return { poems: [], constraints: [], stars: [] };
+  }
+}
+
+function writeDb(data) {
+  try {
+    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Error writing db.json:', e);
+  }
+}
+
+function getConstraintKey(c) {
+  if (c.regex) {
+    return `regex:${c.regex.source}:${c.regex.flags || ''}`;
+  } else if (c.script) {
+    const hooksKey = Object.entries(c.script.hooks || {})
+      .map(([k, v]) => `${k}=${v}`)
+      .sort()
+      .join(';');
+    return `script:${c.script.title}:${hooksKey}`;
+  } else if (c.logic) {
+    return `logic:${c.logic.handler}`;
+  } else if (c.formId) {
+    const paramsKey = Object.entries(c.params || {})
+      .map(([k, v]) => `${k}=${v}`)
+      .sort()
+      .join(';');
+    return `form:${c.formId}:${paramsKey}`;
+  }
+  return null;
+}
+
+// Poems endpoints
+app.get('/api/poems', checkGoogleAuth, (req, res) => {
+  const db = readDb();
+  const userPoems = db.poems.filter(p => p.userId === req.user.email);
+  res.json(userPoems);
+});
+
+app.post('/api/poems', checkGoogleAuth, (req, res) => {
+  const { title, text, constraints } = req.body;
+  if (!text) {
+    return res.status(400).json({ error: 'Poem text is required' });
+  }
+
+  const db = readDb();
+  const poemId = 'p-' + Math.random().toString(36).slice(2, 9);
+
+  const newPoem = {
+    id: poemId,
+    title: title || 'Untitled Poem',
+    text: text,
+    constraints: constraints || [],
+    userId: req.user.email,
+    author: req.user.given_name || req.user.name,
+    createdAt: Date.now()
+  };
+
+  db.poems.push(newPoem);
+
+  // Publish each used constraint to the marketplace
+  if (Array.isArray(constraints)) {
+    constraints.forEach(c => {
+      const key = getConstraintKey(c) || `legacy:${c.title || c.name || 'unnamed'}`;
+      const existing = db.constraints.find(pc => pc.key === key);
+
+      if (!existing) {
+        const constraintId = 'c-' + Math.random().toString(36).slice(2, 9);
+        const newConstraint = {
+          id: constraintId,
+          key: key,
+          name: c.title || c.instance?.title || 'Unnamed Constraint',
+          blurb: c.description || c.instance?.description || '',
+          author: req.user.given_name || req.user.name,
+          formId: c.formId,
+          params: c.params,
+          regex: c.regex,
+          script: c.script,
+          logic: c.logic,
+          ts: Date.now()
+        };
+        db.constraints.push(newConstraint);
+      }
+    });
+  }
+
+  writeDb(db);
+  res.json({ success: true, poem: newPoem });
+});
+
+// Marketplace & starring endpoints
+app.get('/api/constraints', checkGoogleAuth, (req, res) => {
+  const db = readDb();
+  const userStars = db.stars
+    .filter(s => s.userId === req.user.email)
+    .map(s => s.constraintId);
+
+  const list = db.constraints.map(c => ({
+    ...c,
+    starred: userStars.includes(c.id)
+  }));
+
+  res.json(list);
+});
+
+app.post('/api/constraints/:id/star', checkGoogleAuth, (req, res) => {
+  const { id } = req.params;
+  const db = readDb();
+
+  const constraint = db.constraints.find(c => c.id === id);
+  if (!constraint) {
+    return res.status(404).json({ error: 'Constraint not found in marketplace' });
+  }
+
+  const starIndex = db.stars.findIndex(s => s.userId === req.user.email && s.constraintId === id);
+  let starred = false;
+
+  if (starIndex > -1) {
+    db.stars.splice(starIndex, 1);
+  } else {
+    db.stars.push({
+      userId: req.user.email,
+      constraintId: id
+    });
+    starred = true;
+  }
+
+  writeDb(db);
+  res.json({ success: true, starred });
 });
 
 const PORT = process.env.PORT || 3000;

@@ -1,0 +1,175 @@
+{
+  "poems": [
+    {
+      "id": "p-4bmgm50",
+      "title": "Aaaa",
+      "text": "Aaaa",
+      "constraints": [
+        {
+          "formId": "regex-custom",
+          "params": {},
+          "script": {
+            "title": "Only A's",
+            "hooks": {
+              "canInsert": "if (/^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 'a'; } return true;",
+              "canBreakSpace": "return true;",
+              "canBreakLine": "return true;",
+              "lineFeedback": "if (currentLine.length > 0 && /[^aA]/.test(currentLine)) { return \"Only 'A' allowed\"; } return null;"
+            }
+          },
+          "title": "Only A's",
+          "description": "Custom script"
+        }
+      ],
+      "userId": "tareqdandachi@gmail.com",
+      "author": "Torque",
+      "createdAt": 1779407310667
+    },
+    {
+      "id": "p-w7m3rt6",
+      "title": "Pasta Prelude",
+      "text": "Hello angel hair,\nHow do you fair today, my favorite pasta man,\nNo acini di pepe, or tortelli (ni?)\nI'm not a fagottini, or a rigatoni,\nBut I do know, that deep down, we are macaroni",
+      "constraints": [
+        {
+          "formId": "regex-custom",
+          "params": {},
+          "script": {
+            "title": "Pasta Inclusion",
+            "hooks": {
+              "canInsert": "return true;",
+              "canBreakSpace": "return true;",
+              "canBreakLine": "return /\\b(pasta|vermicelli|spaghetti|fettuccine|linguine|penne|rigatoni|macaroni|lasagna|ravioli|tortellini|gnocchi|orzo|farfalle|conchiglie|tagliatelle|pappardelle|bucatini|ditalini|stelline|rotini|fusilli|gemelli|campanelle|orecchiette|radiatori|cavatappi|ziti|mostaccioli|manicotti|agnolotti|cannelloni|fagottini|sacchetti|tortelli|malfatti|strozzapreti|pici|bigoli|spaghettini|capellini|angel hair|fideo|sopa seca|pastina|acini di pepe|risoni|couscous|soba|udon|ramen)\\b/i.test(currentLine);",
+              "lineFeedback": "if (currentLine.length > 0 && !/\\b(pasta|vermicelli|spaghetti|fettuccine|linguine|penne|rigatoni|macaroni|lasagna|ravioli|tortellini|gnocchi|orzo|farfalle|conchiglie|tagliatelle|pappardelle|bucatini|ditalini|stelline|rotini|fusilli|gemelli|campanelle|orecchiette|radiatori|cavatappi|ziti|mostaccioli|manicotti|agnolotti|cannelloni|fagottini|sacchetti|tortelli|malfatti|strozzapreti|pici|bigoli|spaghettini|capellini|angel hair|fideo|sopa seca|pastina|acini di pepe|risoni|couscous|soba|udon|ramen)\\b/i.test(currentLine)) return \"Line must include a pasta type\"; return null;"
+            }
+          },
+          "title": "Pasta Inclusion",
+          "description": "Custom script"
+        }
+      ],
+      "userId": "tareqdandachi@gmail.com",
+      "author": "Torque",
+      "createdAt": 1779407770359
+    },
+    {
+      "id": "p-uyrqqtt",
+      "title": "Ode to Spaghet",
+      "text": "The rain falls on the sidewalk in thick drops like fettuccine,\nlong streams criss-crossing like linguine,\nit soaks into my angel hair\nbut i see in the distance a pasta shop there\nas i walk in, the smells are a layered lasagna\nthe squish of macaroni sounds as good as rihanna\nthe ziti teenage cashier asks if i want any\nbut i tell him i aint got even a penne",
+      "constraints": [
+        {
+          "formId": "regex-custom",
+          "params": {},
+          "script": {
+            "title": "Pasta Inclusion",
+            "hooks": {
+              "canInsert": "return true;",
+              "canBreakSpace": "return true;",
+              "canBreakLine": "return /\\b(pasta|vermicelli|spaghetti|fettuccine|linguine|penne|rigatoni|macaroni|lasagna|ravioli|tortellini|gnocchi|orzo|farfalle|conchiglie|tagliatelle|pappardelle|bucatini|ditalini|stelline|rotini|fusilli|gemelli|campanelle|orecchiette|radiatori|cavatappi|ziti|mostaccioli|manicotti|agnolotti|cannelloni|fagottini|sacchetti|tortelli|malfatti|strozzapreti|pici|bigoli|spaghettini|capellini|angel hair|fideo|sopa seca|pastina|acini di pepe|risoni|couscous|soba|udon|ramen)\\b/i.test(currentLine);",
+              "lineFeedback": "if (currentLine.length > 0 && !/\\b(pasta|vermicelli|spaghetti|fettuccine|linguine|penne|rigatoni|macaroni|lasagna|ravioli|tortellini|gnocchi|orzo|farfalle|conchiglie|tagliatelle|pappardelle|bucatini|ditalini|stelline|rotini|fusilli|gemelli|campanelle|orecchiette|radiatori|cavatappi|ziti|mostaccioli|manicotti|agnolotti|cannelloni|fagottini|sacchetti|tortelli|malfatti|strozzapreti|pici|bigoli|spaghettini|capellini|angel hair|fideo|sopa seca|pastina|acini di pepe|risoni|couscous|soba|udon|ramen)\\b/i.test(currentLine)) return \"Line must include a pasta type\"; return null;"
+            }
+          },
+          "title": "Pasta Inclusion",
+          "description": "Custom script"
+        }
+      ],
+      "userId": "tareqdandachi@gmail.com",
+      "author": "Torque",
+      "createdAt": 1779408453577
+    },
+    {
+      "id": "p-gluqv9j",
+      "title": "an ode to derriere",
+      "text": "butt\nbutt\nbutt\nbutt\nbutt",
+      "constraints": [
+        {
+          "formId": "regex-custom",
+          "params": {},
+          "script": {
+            "title": "Every word must be 'butt'",
+            "hooks": {
+              "canInsert": "if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 'b'; } if (colIdx === 1 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 'u'; } if (colIdx === 2 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 't'; } if (colIdx === 3 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 't'; } if (colIdx >= 4) { return false; } return true;",
+              "canBreakSpace": "return currentWord === 'butt';",
+              "canBreakLine": "return currentWord === 'butt';",
+              "lineFeedback": "var words = currentLine.split(/\\s+/); for (var i = 0; i < words.length; i++) { if (words[i] !== '' && words[i] !== 'butt') { return 'Every word must be \"butt\"'; } } return null;"
+            }
+          },
+          "title": "Every word must be 'butt'",
+          "description": "Custom script"
+        }
+      ],
+      "userId": "tareqdandachi@gmail.com",
+      "author": "Torque",
+      "createdAt": 1779408669594
+    }
+  ],
+  "constraints": [
+    {
+      "id": "c-boq2i9w",
+      "key": "script:Only A's:canBreakLine=return true;;canBreakSpace=return true;;canInsert=if (/^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 'a'; } return true;;lineFeedback=if (currentLine.length > 0 && /[^aA]/.test(currentLine)) { return \"Only 'A' allowed\"; } return null;",
+      "name": "Only A's",
+      "blurb": "Custom script",
+      "author": "Torque",
+      "formId": "regex-custom",
+      "params": {},
+      "script": {
+        "title": "Only A's",
+        "hooks": {
+          "canInsert": "if (/^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 'a'; } return true;",
+          "canBreakSpace": "return true;",
+          "canBreakLine": "return true;",
+          "lineFeedback": "if (currentLine.length > 0 && /[^aA]/.test(currentLine)) { return \"Only 'A' allowed\"; } return null;"
+        }
+      },
+      "ts": 1779407310667
+    },
+    {
+      "id": "c-hn7yoh0",
+      "key": "script:Pasta Inclusion:canBreakLine=return /\\b(pasta|vermicelli|spaghetti|fettuccine|linguine|penne|rigatoni|macaroni|lasagna|ravioli|tortellini|gnocchi|orzo|farfalle|conchiglie|tagliatelle|pappardelle|bucatini|ditalini|stelline|rotini|fusilli|gemelli|campanelle|orecchiette|radiatori|cavatappi|ziti|mostaccioli|manicotti|agnolotti|cannelloni|fagottini|sacchetti|tortelli|malfatti|strozzapreti|pici|bigoli|spaghettini|capellini|angel hair|fideo|sopa seca|pastina|acini di pepe|risoni|couscous|soba|udon|ramen)\\b/i.test(currentLine);;canBreakSpace=return true;;canInsert=return true;;lineFeedback=if (currentLine.length > 0 && !/\\b(pasta|vermicelli|spaghetti|fettuccine|linguine|penne|rigatoni|macaroni|lasagna|ravioli|tortellini|gnocchi|orzo|farfalle|conchiglie|tagliatelle|pappardelle|bucatini|ditalini|stelline|rotini|fusilli|gemelli|campanelle|orecchiette|radiatori|cavatappi|ziti|mostaccioli|manicotti|agnolotti|cannelloni|fagottini|sacchetti|tortelli|malfatti|strozzapreti|pici|bigoli|spaghettini|capellini|angel hair|fideo|sopa seca|pastina|acini di pepe|risoni|couscous|soba|udon|ramen)\\b/i.test(currentLine)) return \"Line must include a pasta type\"; return null;",
+      "name": "Pasta Inclusion",
+      "blurb": "Custom script",
+      "author": "Torque",
+      "formId": "regex-custom",
+      "params": {},
+      "script": {
+        "title": "Pasta Inclusion",
+        "hooks": {
+          "canInsert": "return true;",
+          "canBreakSpace": "return true;",
+          "canBreakLine": "return /\\b(pasta|vermicelli|spaghetti|fettuccine|linguine|penne|rigatoni|macaroni|lasagna|ravioli|tortellini|gnocchi|orzo|farfalle|conchiglie|tagliatelle|pappardelle|bucatini|ditalini|stelline|rotini|fusilli|gemelli|campanelle|orecchiette|radiatori|cavatappi|ziti|mostaccioli|manicotti|agnolotti|cannelloni|fagottini|sacchetti|tortelli|malfatti|strozzapreti|pici|bigoli|spaghettini|capellini|angel hair|fideo|sopa seca|pastina|acini di pepe|risoni|couscous|soba|udon|ramen)\\b/i.test(currentLine);",
+          "lineFeedback": "if (currentLine.length > 0 && !/\\b(pasta|vermicelli|spaghetti|fettuccine|linguine|penne|rigatoni|macaroni|lasagna|ravioli|tortellini|gnocchi|orzo|farfalle|conchiglie|tagliatelle|pappardelle|bucatini|ditalini|stelline|rotini|fusilli|gemelli|campanelle|orecchiette|radiatori|cavatappi|ziti|mostaccioli|manicotti|agnolotti|cannelloni|fagottini|sacchetti|tortelli|malfatti|strozzapreti|pici|bigoli|spaghettini|capellini|angel hair|fideo|sopa seca|pastina|acini di pepe|risoni|couscous|soba|udon|ramen)\\b/i.test(currentLine)) return \"Line must include a pasta type\"; return null;"
+        }
+      },
+      "ts": 1779407770359
+    },
+    {
+      "id": "c-s9wgkn0",
+      "key": "script:Every word must be 'butt':canBreakLine=return currentWord === 'butt';;canBreakSpace=return currentWord === 'butt';;canInsert=if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 'b'; } if (colIdx === 1 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 'u'; } if (colIdx === 2 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 't'; } if (colIdx === 3 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 't'; } if (colIdx >= 4) { return false; } return true;;lineFeedback=var words = currentLine.split(/\\s+/); for (var i = 0; i < words.length; i++) { if (words[i] !== '' && words[i] !== 'butt') { return 'Every word must be \"butt\"'; } } return null;",
+      "name": "Every word must be 'butt'",
+      "blurb": "Custom script",
+      "author": "Torque",
+      "formId": "regex-custom",
+      "params": {},
+      "script": {
+        "title": "Every word must be 'butt'",
+        "hooks": {
+          "canInsert": "if (colIdx === 0 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 'b'; } if (colIdx === 1 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 'u'; } if (colIdx === 2 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 't'; } if (colIdx === 3 && /^[a-z]$/i.test(ch)) { return ch.toLowerCase() === 't'; } if (colIdx >= 4) { return false; } return true;",
+          "canBreakSpace": "return currentWord === 'butt';",
+          "canBreakLine": "return currentWord === 'butt';",
+          "lineFeedback": "var words = currentLine.split(/\\s+/); for (var i = 0; i < words.length; i++) { if (words[i] !== '' && words[i] !== 'butt') { return 'Every word must be \"butt\"'; } } return null;"
+        }
+      },
+      "ts": 1779408669594
+    }
+  ],
+  "stars": [
+    {
+      "userId": "tareqdandachi@gmail.com",
+      "constraintId": "c-boq2i9w"
+    }
+  ],
+  "poemStars": [
+    {
+      "userId": "tareqdandachi@gmail.com",
+      "poemId": "p-uyrqqtt"
+    }
+  ]
+}

@@ -13,7 +13,7 @@
     return { uid: nextUid(), formId: form.id, params: merged, instance: form.make(merged) };
   }
 
-    // Apply a community entry to the active list, carrying the author handle
+  // Apply a community entry to the active list, carrying the author handle
   // and entry id along on the wrapped object so pills can show "· @author".
   function applyCommunityEntry(entry, active, setActive) {
     const inst = OuvroirCommunity.instantiate(entry);
@@ -42,7 +42,7 @@
   }
 
   // ---- A. dropdown variant --------------------------------------------
-  function CreatorDropdown({ active, setActive, onBrowse }) {
+  function CreatorDropdown({ active, setActive, onBrowse, starredConstraints = [], pickStarred }) {
     const [open, setOpen] = useState(false);
     const [q, setQ] = useState('');
     const [pickedKey, setPickedKey] = useState(null); // 'form:<id>'
@@ -72,10 +72,11 @@
       const needle = q.toLowerCase().trim();
       const m = (s) => !needle || s.toLowerCase().includes(needle);
       return {
-        favs:  favEntries.filter(e => m(e.name) || m(e.author) || m(e.blurb || '')),
+        favs: favEntries.filter(e => m(e.name) || m(e.author) || m(e.blurb || '')),
         forms: FORMS.filter(f => m(f.name) || m(f.blurb)),
+        starred: (starredConstraints || []).filter(c => m(c.name) || (c.author && m(c.author)) || m(c.blurb || '')),
       };
-    }, [q, favEntries, FORMS]);
+    }, [q, favEntries, FORMS, starredConstraints]);
 
     const pickForm = (f) => {
       setPickedKey(`form:${f.id}`);
@@ -145,6 +146,30 @@
                 </span>
               </button>
 
+              {filtered.starred.length > 0 && (
+                <>
+                  <div className="ouv-combo-divider" />
+                  <div className="ouv-combo-group">My Constraints</div>
+                  {filtered.starred.map(c => (
+                    <button
+                      key={`star:${c.id}`}
+                      className="ouv-combo-item"
+                      onClick={() => {
+                        pickStarred(c);
+                        setOpen(false);
+                        setQ('');
+                      }}
+                    >
+                      <span className="ouv-combo-name">
+                        <span className="ouv-combo-star">★</span> {c.name}
+                        {c.author && <span className="ouv-combo-by"> · @{c.author}</span>}
+                      </span>
+                      <span className="ouv-combo-blurb">{c.blurb}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+
               {filtered.favs.length > 0 && (
                 <>
                   <div className="ouv-combo-divider" />
@@ -177,7 +202,7 @@
                   <span className="ouv-combo-blurb">{f.blurb}</span>
                 </button>
               ))}
-              {!filtered.forms.length && !filtered.favs.length && q && (
+              {!filtered.forms.length && !filtered.favs.length && !filtered.starred.length && q && (
                 <div className="ouv-combo-empty">No matching form.</div>
               )}
             </div>
@@ -357,7 +382,7 @@
     const [rawErr, setRawErr] = useState(null);
 
     const [desc, setDesc] = useState('');
-    
+
     // Read past saved auth token states from client memory if available
     const [authToken, setAuthToken] = useState(() => localStorage.getItem('google_id_token') || null);
 
@@ -371,11 +396,11 @@
 
     //   window.handleCredentialResponse = (response) => {
     //     localStorage.setItem('google_id_token', response.credential);
-        
+
     //     // Decode the token to get the user's name
     //     const user = parseJwt(response.credential);
     //     localStorage.setItem('user_first_name', user.given_name); // Save for later
-        
+
     //     window.dispatchEvent(new Event('auth-changed'));
     //   };
 
@@ -431,15 +456,23 @@
             'Authorization': `Bearer ${authToken}`
           },
           // We only send the raw input here
-          body: JSON.stringify({ userPrompt: desc }) 
+          body: JSON.stringify({ userPrompt: desc })
         });
 
         const data = await response.json();
 
-        if (!response.ok) throw new Error(data.error?.message || "Generation failed");
+        if (!response.ok) throw new Error(data?.error?.message || "Generation failed");
 
-        // DeepSeek returns the JSON string in content
-        const parsed = JSON.parse(data.choices[0].message.content);
+        const rawContent = data.choices[0].message.content.trim();
+
+        let jsonString = rawContent;
+
+        const fenceMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (fenceMatch) {
+          jsonString = fenceMatch[1].trim();
+        }
+
+        const parsed = JSON.parse(jsonString);
         setResult(parsed);
       } catch (e) {
         setErr(e.message);
@@ -450,7 +483,7 @@
 
     // const generate = async () => {
     //   if (!desc.trim()) return;
-      
+
     //   setBusy(true); 
     //   setErr(null); 
     //   setResult(null);
@@ -460,7 +493,7 @@
     //       method: 'POST',
     //       headers: {
     //         'Content-Type': 'application/json',
-    //         'Authorization': `Bearer ${authToken}`
+    //         'Authorization': `Bearer ${ authToken }`
     //       },
     //       body: JSON.stringify({
     //         model: 'deepseek-chat',
@@ -473,26 +506,26 @@
     //     // 1. ADD THIS: Check for HTTP errors explicitly
     //     if (!response.ok) {
     //       const errorText = await response.text();
-    //       throw new Error(`Server Error (${response.status}): ${errorText}`);
+    //       throw new Error(`Server Error(${ response.status }): ${ errorText }`);
     //     }
 
     //     const data = await response.json();
-        
+
     //     // 2. ADD THIS: Check if DeepSeek actually returned a message
     //     if (!data.choices || data.choices.length === 0) {
     //       throw new Error("DeepSeek returned an empty response.");
     //     }
 
     //     const rawContent = data.choices[0].message.content.trim();
-    //     const cleaned = rawContent.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-        
+    //     const cleaned = rawContent.replace(/^```(?: json) ? /i, '').replace(/```$/i, '').trim();
+
     //     // 3. ADD THIS: Catch JSON parsing errors specifically
     //     try {
     //       const parsed = JSON.parse(cleaned);
     //       if (!parsed.regex) throw new Error("JSON missing 'regex' field.");
     //       setResult({ regex: parsed.regex, flags: parsed.flags || 'i', explanation: parsed.explanation || '' });
     //     } catch (parseErr) {
-    //       throw new Error(`Failed to parse AI response: ${cleaned.substring(0, 50)}...`);
+    //       throw new Error(`Failed to parse AI response: ${ cleaned.substring(0, 50) }...`);
     //     }
 
     //   } catch (e) {
@@ -518,7 +551,7 @@
 
     const apply = async () => {
       if (!result) return;
-      
+
       let constraintInstance;
 
       // 1. Convert the AI response into a formal Constraint Object
@@ -558,6 +591,9 @@
           uid: nextUid(),
           formId: result.type === 'logic' ? 'logic-custom' : 'regex-custom',
           params: {},
+          script: result.type === 'script' ? { title: result.title, description: result.explanation, hooks: result.hooks } : undefined,
+          logic: result.type === 'logic' ? { handler: result.handler } : undefined,
+          regex: (!result.type || result.type === 'regex') ? { source: result.regex, flags: result.flags, blurb: result.explanation } : undefined,
           instance: constraintInstance // This must be the full object
         }]);
       } else {
@@ -595,36 +631,36 @@
           >Describe</button>
           <button
             role="tab"
-            className={`ouv-nl-tab${mode === 'raw' ? ' is-on' : ''}`}
+            className={`ouv-nl-tab${mode === 'raw' ? ' is-on' : ''} `}
             onClick={() => setMode('raw')}
           >Regex</button>
         </div>
 
         {mode === 'nl' && (
           <>
-        <textarea
-          className="ouv-nl-input"
-          placeholder="e.g. every word starts with a different letter than the previous one"
-          value={desc}
-          onChange={e => setDesc(e.target.value)}
-          rows={3}
-        />
-        <button
-          className="ouv-btn ouv-btn-secondary"
-          onClick={generate}
-          disabled={busy || !desc.trim()}
-        >
-          {busy ? 'Translating…' : 'Generate constraint'}
-        </button>
-        {err && <div className="ouv-nl-err">⚠ {err}</div>}
-        {result && (
-          <div className="ouv-nl-result">
-            <div className="ouv-nl-label">Description</div>
-            <div className="ouv-nl-explain">{result.explanation || desc}</div>
-            <div className="ouv-nl-label">Regex</div>
-            <code className="ouv-nl-regex">/{result.regex}/{result.flags}</code>
-            <button className="ouv-btn ouv-btn-primary" onClick={apply}>Apply constraint</button>
-            </div>
+            <textarea
+              className="ouv-nl-input"
+              placeholder="e.g. every word starts with a different letter than the previous one"
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              rows={3}
+            />
+            <button
+              className="ouv-btn ouv-btn-secondary"
+              onClick={generate}
+              disabled={busy || !desc.trim()}
+            >
+              {busy ? 'Translating…' : 'Generate constraint'}
+            </button>
+            {err && <div className="ouv-nl-err">⚠ {err}</div>}
+            {result && (
+              <div className="ouv-nl-result">
+                <div className="ouv-nl-label">Description</div>
+                <div className="ouv-nl-explain">{result.explanation || desc}</div>
+                <div className="ouv-nl-label">Regex</div>
+                <code className="ouv-nl-regex">/{result.regex}/{result.flags}</code>
+                <button className="ouv-btn ouv-btn-primary" onClick={apply}>Apply constraint</button>
+              </div>
             )}
           </>
         )}
