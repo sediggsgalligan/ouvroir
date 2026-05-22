@@ -340,6 +340,136 @@
   //   };
   // }
 
+  // function makeScriptedConstraint({ title, description, hooks = {} }) {
+  //   const validators = {};
+
+  //   function createSyncSandbox(logicCode, argPattern) {
+  //     try {
+  //       return new Function(
+  //         argPattern,
+  //         `
+  //     const window = undefined;
+  //     const globalThis = undefined;
+  //     const document = undefined;
+
+  //     try {
+  //       // Pass the arguments cleanly down into the user expression block
+  //       const __user_expr__ = function(a, b, c) {
+  //         ${logicCode}
+  //       };
+  //       return __user_expr__(arguments[0], arguments[1], arguments[2]);
+  //     } catch (e) {
+  //       return 'reject';
+  //     }
+  //     `
+  //       );
+  //     } catch (e) {
+  //       return () => 'valid';
+  //     }
+  //   }
+
+  //   if (hooks && hooks.validateToken) {
+  //     validators.validateToken = createSyncSandbox(hooks.validateToken, 'token,ctx');
+  //   }
+  //   // Change 'words,ctx' to 'words,ctx,op' right here:
+  //   if (hooks && hooks.validateStructure) {
+  //     validators.validateStructure = createSyncSandbox(hooks.validateStructure, 'words,ctx,op');
+  //   }
+
+  //   // function serializeCtx(ctx, lineOverride = null) {
+  //   //   const targetLine = lineOverride !== null ? lineOverride : (ctx.currentLine || '');
+  //   //   const words = targetLine.trim().split(/\s+/).filter(Boolean);
+  //   //   return {
+  //   //     currentWord: String(ctx.currentWord || ''),
+  //   //     currentLine: String(targetLine),
+  //   //     prevWord: String(ctx.prevWord || ''),
+  //   //     lineIdx: Number(ctx.lineIdx || 0),
+  //   //     wordIdx: Number(words.length),
+  //   //     colIdx: Number(ctx.colIdx || 0)
+  //   //   };
+  //   // }
+
+  //   function serializeCtx(ctx, lineOverride = null) {
+  //     const targetLine = lineOverride !== null ? lineOverride : (ctx.currentLine || '');
+  //     const words = targetLine.trim().split(/\s+/).filter(Boolean);
+  //     return {
+  //       currentWord: String(ctx.currentWord || ''),
+  //       currentLine: String(targetLine),
+  //       prevWord: String(ctx.prevWord || ''),
+  //       lineIdx: Number(ctx.lineIdx || 0),
+  //       wordIdx: Number(words.length),
+  //       colIdx: Number(ctx.colIdx || 0),
+  //       lines: Array.isArray(ctx.lines) ? [...ctx.lines] : []
+  //     };
+  //   }
+
+  //   return {
+  //     kind: 'scripted',
+  //     title: title || 'Scripted Constraint',
+  //     description: description || 'Two-tier dynamic state validation script',
+
+  //     canInsert: (ctx, ch) => {
+  //       const safeCtx = serializeCtx(ctx);
+  //       if (validators.validateToken && ch !== ' ' && ch !== '\n') {
+  //         const nextWord = safeCtx.currentWord + ch;
+  //         if (!validators.validateToken(nextWord, safeCtx)) {
+  //           return { ok: false, why: 'insertion-reject' };
+  //         }
+  //       }
+  //       return { ok: true };
+  //     },
+
+  //     canBreakSpace: (ctx) => {
+  //       if (!validators.validateStructure) return { ok: true };
+  //       const safeCtx = serializeCtx(ctx);
+  //       const currentWords = safeCtx.currentLine.trim().split(/\s+/).filter(Boolean);
+
+  //       // Explicitly passes 'space' as the 3rd parameter
+  //       const structuralState = validators.validateStructure(currentWords, safeCtx, 'space');
+  //       if (structuralState === 'reject') {
+  //         return { ok: false, why: 'insertion-reject: Word limit reached.' };
+  //       }
+  //       return { ok: true };
+  //     },
+
+  //     canBreakLine: (ctx) => {
+  //       if (!validators.validateStructure) return { ok: true };
+  //       const safeCtx = serializeCtx(ctx);
+  //       const currentWords = safeCtx.currentLine.trim().split(/\s+/).filter(Boolean);
+
+  //       // Explicitly passes 'enter' as the 3rd parameter
+  //       const structuralState = validators.validateStructure(currentWords, safeCtx, 'enter');
+  //       if (structuralState !== 'valid') {
+  //         return { ok: false, why: 'insertion-reject: Line incomplete.' };
+  //       }
+  //       return { ok: true };
+  //     },
+
+  //     lineFeedback: (ctx, i) => {
+  //       const targetLine = ctx.lines[i] || '';
+  //       if (!targetLine.trim()) return null;
+
+  //       const safeCtx = serializeCtx(ctx, targetLine);
+  //       safeCtx.lineIdx = i;
+  //       const currentWords = targetLine.trim().split(/\s+/).filter(Boolean);
+
+  //       if (validators.validateToken) {
+  //         for (const token of currentWords) {
+  //           if (!validators.validateToken(token, safeCtx)) return 'deletion-reject!';
+  //         }
+  //       }
+
+  //       if (validators.validateStructure) {
+  //         const structuralState = validators.validateStructure(currentWords, safeCtx, 'audit');
+  //         if (structuralState === 'reject') return 'structural-reject!';
+  //         if (structuralState === 'not-yet-satisfied') return 'not-yet-satisfied';
+  //       }
+
+  //       return null;
+  //     }
+  //   };
+  // }
+
   function makeScriptedConstraint({ title, description, hooks = {} }) {
     const validators = {};
 
@@ -348,20 +478,21 @@
         return new Function(
           argPattern,
           `
-      const window = undefined;
-      const globalThis = undefined;
-      const document = undefined;
+    const window = undefined;
+    const globalThis = undefined;
+    const document = undefined;
 
-      try {
-        // Pass the arguments cleanly down into the user expression block
-        const __user_expr__ = function(a, b, c) {
-          ${logicCode}
-        };
-        return __user_expr__(arguments[0], arguments[1], arguments[2]);
-      } catch (e) {
-        return 'reject';
-      }
-      `
+    try {
+      // Named parameter routing explicitly handles up to 3 arguments
+      // to bypass inner runtime resets of the arguments array container
+      const __user_expr__ = function(a, b, c) {
+        ${logicCode}
+      };
+      return __user_expr__(arguments[0], arguments[1], arguments[2]);
+    } catch (e) {
+      return 'reject';
+    }
+    `
         );
       } catch (e) {
         return () => 'valid';
@@ -371,7 +502,7 @@
     if (hooks && hooks.validateToken) {
       validators.validateToken = createSyncSandbox(hooks.validateToken, 'token,ctx');
     }
-    // Change 'words,ctx' to 'words,ctx,op' right here:
+    // This explicitly sets up named argument slots for token-skipping calculations
     if (hooks && hooks.validateStructure) {
       validators.validateStructure = createSyncSandbox(hooks.validateStructure, 'words,ctx,op');
     }
@@ -385,7 +516,8 @@
         prevWord: String(ctx.prevWord || ''),
         lineIdx: Number(ctx.lineIdx || 0),
         wordIdx: Number(words.length),
-        colIdx: Number(ctx.colIdx || 0)
+        colIdx: Number(ctx.colIdx || 0),
+        lines: Array.isArray(ctx.lines) ? [...ctx.lines] : []
       };
     }
 
@@ -410,7 +542,7 @@
         const safeCtx = serializeCtx(ctx);
         const currentWords = safeCtx.currentLine.trim().split(/\s+/).filter(Boolean);
 
-        // Explicitly passes 'space' as the 3rd parameter
+        // Pass the 'space' operator down into the structural validator layout
         const structuralState = validators.validateStructure(currentWords, safeCtx, 'space');
         if (structuralState === 'reject') {
           return { ok: false, why: 'insertion-reject: Word limit reached.' };
@@ -423,7 +555,7 @@
         const safeCtx = serializeCtx(ctx);
         const currentWords = safeCtx.currentLine.trim().split(/\s+/).filter(Boolean);
 
-        // Explicitly passes 'enter' as the 3rd parameter
+        // Pass the 'enter' operator down into the structural validator layout
         const structuralState = validators.validateStructure(currentWords, safeCtx, 'enter');
         if (structuralState !== 'valid') {
           return { ok: false, why: 'insertion-reject: Line incomplete.' };
@@ -439,12 +571,14 @@
         safeCtx.lineIdx = i;
         const currentWords = targetLine.trim().split(/\s+/).filter(Boolean);
 
+        // Tier 1 Validation Check (Token filtering layers)
         if (validators.validateToken) {
           for (const token of currentWords) {
             if (!validators.validateToken(token, safeCtx)) return 'deletion-reject!';
           }
         }
 
+        // Tier 2 Validation Check (Structural macro calculations layer)
         if (validators.validateStructure) {
           const structuralState = validators.validateStructure(currentWords, safeCtx, 'audit');
           if (structuralState === 'reject') return 'structural-reject!';
