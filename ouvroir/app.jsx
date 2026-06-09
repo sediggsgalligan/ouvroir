@@ -98,7 +98,7 @@
 
           {!token ? (
             <div style={{ padding: 48, textAlign: 'center', fontStyle: 'italic', color: 'var(--mute)' }}>
-              Please sign in or enter a guest handle in the sidebar to view the marketplace.
+              Please sign in in the sidebar to view the marketplace.
             </div>
           ) : (
             <>
@@ -213,7 +213,7 @@
 
         {!token ? (
           <div style={{ padding: '64px', textAlign: 'center', fontStyle: 'italic', color: 'var(--mute)', fontFamily: 'var(--serif)' }}>
-            Please sign in or enter a guest handle in the sidebar to view community poetry.
+            Please sign in in the sidebar to view community poetry.
           </div>
         ) : (
           <>
@@ -335,6 +335,11 @@
     const [poems, setPoems] = useState([]);
     const [poemTitle, setPoemTitle] = useState('');
     const [statusMessage, setStatusMessage] = useState('');
+    const [currentPoemId, setCurrentPoemId] = useState(null);
+    const [currentPoemMeta, setCurrentPoemMeta] = useState(null);
+    const [timelineForPoem, setTimelineForPoem] = useState(null);
+    const [timelineEntries, setTimelineEntries] = useState([]);
+    const [timelineLoading, setTimelineLoading] = useState(false);
 
     // Page view routing
     const [currentView, setCurrentView] = useState(() => {
@@ -387,7 +392,7 @@
           setStarredConstraints(cData.filter(c => c.starred));
         }
 
-        const pRes = await fetch('http://localhost:3000/api/poems', {
+        const pRes = await fetch('http://localhost:3000/api/poems/mine', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (pRes.status === 401 || pRes.status === 403) {
@@ -450,12 +455,12 @@
         deserialized.community = { name: c.name, author: c.author, id: c.id };
         setActive(prev => [...prev, deserialized]);
       }
-    }, [active]);
+    }, []);
 
-    const savePoem = async () => {
+    const savePoem = async (isPublic = false) => {
       const token = localStorage.getItem('google_id_token');
       if (!token) {
-        setStatusMessage('Please sign in or enter a guest handle to save.');
+        setStatusMessage('Please sign in to save.');
         return;
       }
       if (!text.trim()) {
@@ -463,7 +468,7 @@
         return;
       }
 
-      setStatusMessage('Saving...');
+      setStatusMessage(isPublic ? 'Publishing...' : 'Saving...');
       try {
         const serialized = active.map(c => window.Ouvroir.serializeConstraint(c));
         const res = await fetch('http://localhost:3000/api/poems', {
@@ -473,9 +478,11 @@
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
+            id: currentPoemId,
             title: poemTitle.trim() || 'Untitled Poem',
             text: text,
-            constraints: serialized
+            constraints: serialized,
+            public: isPublic
           })
         });
 
@@ -485,8 +492,12 @@
         }
 
         if (res.ok) {
-          setStatusMessage('Saved! Constraints published.');
-          setPoemTitle('');
+          const payload = await res.json();
+          if (payload?.poem?.id) {
+            setCurrentPoemId(payload.poem.id);
+            setCurrentPoemMeta(payload.poem);
+          }
+          setStatusMessage(isPublic ? 'Published!' : 'Saved!');
           fetchData();
           setTimeout(() => setStatusMessage(''), 3000);
         } else {
@@ -498,9 +509,11 @@
       }
     };
 
-    const loadPoem = (poem) => {
+    const loadPoem = useCallback((poem) => {
       setText(poem.text);
       setPoemTitle(poem.title || '');
+      setCurrentPoemId(poem.id || null);
+      setCurrentPoemMeta(poem || null);
       const deserializedList = (poem.constraints || [])
         .map(c => window.Ouvroir.deserializeConstraint(c))
         .filter(Boolean);
@@ -508,6 +521,106 @@
       navigateTo('editor');
       setStatusMessage(`Loaded: "${poem.title}"`);
       setTimeout(() => setStatusMessage(''), 3000);
+    }, []);
+
+    const newPoem = () => {
+      setCurrentPoemId(null);
+      setCurrentPoemMeta(null);
+      setPoemTitle('');
+      setText('');
+      setActive([]);
+      setStatusMessage('Started a new poem draft.');
+      setTimeout(() => setStatusMessage(''), 2500);
+    };
+
+    const lineageMeta = useMemo(() => {
+      if (!currentPoemMeta) return null;
+
+      const ancestry = Array.isArray(currentPoemMeta.ancestry) ? currentPoemMeta.ancestry : [];
+      const firstAuthor = ancestry[0]?.author || currentPoemMeta.originalAuthor || currentPoemMeta.author;
+      const lastAuthor = ancestry[ancestry.length - 1]?.author || currentPoemMeta.author;
+
+      if (!firstAuthor || !lastAuthor) return null;
+
+      const lineageRows = ancestry
+        .filter(node => node && node.author)
+        .map(node => {
+          const stamp = node.createdAt ? new Date(node.createdAt).toLocaleDateString() : 'unknown date';
+          return `@${node.author} - ${node.title || 'Untitled'} (${stamp})`;
+        });
+
+      const sameAuthor = firstAuthor === lastAuthor;
+      const hasLongLineage = lineageRows.length > 2;
+
+      return {
+        text: sameAuthor
+          ? `@${lastAuthor}`
+          : `@${lastAuthor} building on @${firstAuthor}${hasLongLineage ? ' ' : ''}`,
+        showEtAl: hasLongLineage,
+        tooltip: lineageRows.join('\n')
+      };
+    }, [currentPoemMeta]);
+
+    const openTimeline = async (poem) => {
+      const token = localStorage.getItem('google_id_token');
+      if (!token || !poem?.id) return;
+      setTimelineForPoem(poem);
+      setTimelineEntries([]);
+      setTimelineLoading(true);
+      try {
+        const res = await fetch(`http://localhost:3000/api/poems/${poem.id}/checkpoints`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.status === 401 || res.status === 403) {
+          window.forceSignOut();
+          return;
+        }
+        if (res.ok) {
+          const data = await res.json();
+          setTimelineEntries(data.checkpoints || []);
+        }
+      } catch (err) {
+        setStatusMessage(`Error loading timeline: ${err.message}`);
+      } finally {
+        setTimelineLoading(false);
+      }
+    };
+
+    const publishCheckpoint = async (checkpointId) => {
+      const token = localStorage.getItem('google_id_token');
+      if (!token || !timelineForPoem?.id || !checkpointId) return;
+      setStatusMessage('Publishing checkpoint...');
+      try {
+        const res = await fetch(`http://localhost:3000/api/poems/${timelineForPoem.id}/publish-checkpoint`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ checkpointId })
+        });
+        if (res.status === 401 || res.status === 403) {
+          window.forceSignOut();
+          return;
+        }
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.poem?.id === currentPoemId) {
+            setText(data.poem.text || '');
+            setPoemTitle(data.poem.title || '');
+            setCurrentPoemMeta(data.poem);
+          }
+          setStatusMessage('Checkpoint published.');
+          fetchData();
+          openTimeline(timelineForPoem);
+          setTimeout(() => setStatusMessage(''), 3000);
+        } else {
+          const payload = await res.json();
+          setStatusMessage(`Error: ${payload.error || 'Failed to publish checkpoint'}`);
+        }
+      } catch (err) {
+        setStatusMessage(`Error: ${err.message}`);
+      }
     };
 
     useEffect(() => {
@@ -582,59 +695,65 @@
 
             {/* Saved Poems Sidebar Section */}
             <div className="ouv-poems-section" style={{ borderTop: '1px dashed var(--rule)', paddingTop: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div className="ouv-creator-eyebrow">Poems</div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <input
-                  type="text"
-                  placeholder="Poem Title..."
-                  value={poemTitle}
-                  onChange={e => setPoemTitle(e.target.value)}
-                  className="ouv-input"
-                  style={{ fontSize: '13px' }}
-                />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="ouv-creator-eyebrow">Poems</div>
                 <button
-                  className="ouv-btn ouv-btn-primary"
-                  onClick={savePoem}
-                  disabled={!text.trim()}
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  className="ouv-btn ouv-btn-secondary"
+                  onClick={newPoem}
+                  style={{ fontSize: '10px', padding: '2px 6px' }}
                 >
-                  Save Poem
+                  + New Poem
                 </button>
-                {statusMessage && (
-                  <div style={{ fontSize: '11px', color: 'var(--accent)', fontStyle: 'italic' }}>
-                    {statusMessage}
-                  </div>
-                )}
               </div>
+
+              {currentPoemId && (
+                <div style={{ fontSize: '10px', color: 'var(--mute)', fontFamily: 'var(--mono)' }}>
+                  Editing poem id: {currentPoemId}
+                </div>
+              )}
+
+              {statusMessage && (
+                <div style={{ fontSize: '11px', color: 'var(--accent)', fontStyle: 'italic' }}>
+                  {statusMessage}
+                </div>
+              )}
 
               {poems.length > 0 && (
                 <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ fontStyle: 'italic', fontSize: '11px', color: 'var(--mute)', marginBottom: '2px' }}>Saved Poems:</div>
                   <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {poems.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => loadPoem(p)}
-                        className="ouv-btn ouv-btn-ghost"
-                        style={{
-                          textAlign: 'left',
-                          justifyContent: 'flex-start',
-                          padding: '6px 8px',
-                          fontSize: '12px',
-                          width: '100%',
-                          border: '1px solid var(--rule)',
-                          background: 'var(--field)',
-                          borderRadius: '4px',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.title}</span>
-                        <span style={{ fontSize: '10px', color: 'var(--mute)', marginLeft: '6px' }}>
-                          {p.constraints ? `${p.constraints.length} c` : '0 c'}
-                        </span>
-                      </button>
+                      <div key={p.id} style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={() => loadPoem(p)}
+                          className="ouv-btn ouv-btn-ghost"
+                          style={{
+                            textAlign: 'left',
+                            justifyContent: 'flex-start',
+                            padding: '6px 8px',
+                            fontSize: '12px',
+                            width: '100%',
+                            border: '1px solid var(--rule)',
+                            background: 'var(--field)',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.title}</span>
+                          <span style={{ fontSize: '10px', color: 'var(--mute)', marginLeft: '6px' }}>
+                            {p.constraints ? `${p.constraints.length} c` : '0 c'}
+                          </span>
+                        </button>
+                        <button
+                          className="ouv-btn ouv-btn-secondary"
+                          onClick={() => openTimeline(p)}
+                          style={{ fontSize: '10px', padding: '0 6px', minWidth: 'auto' }}
+                          title="Open checkpoint timeline"
+                        >
+                          Timeline
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -658,23 +777,6 @@
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div id="google_signin_button"></div>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <input
-                      type="text"
-                      placeholder="Or enter Guest handle..."
-                      className="ouv-input"
-                      style={{ fontSize: '11px', padding: '4px 6px' }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.target.value.trim()) {
-                          const handle = e.target.value.trim();
-                          localStorage.setItem('google_id_token', 'guest:' + handle);
-                          localStorage.setItem('user_first_name', handle);
-                          window.dispatchEvent(new Event('auth-changed'));
-                          window.location.reload();
-                        }
-                      }}
-                    />
-                  </div>
                 </div>
               )}
             </div>
@@ -691,6 +793,12 @@
                 active={active}
                 text={text}
                 setText={setText}
+                title={poemTitle}
+                setTitle={setPoemTitle}
+                statusMessage={statusMessage}
+                lineageMeta={lineageMeta}
+                onSave={() => savePoem(false)}
+                onPublish={() => savePoem(true)}
                 gutter={tweaks.gutter}
                 showAlphabet={tweaks.showAlphabet} />
             </div>
@@ -703,6 +811,40 @@
           onPick={pickFromBrowse} />
 
         <OuvroirTweaks tweaks={tweaks} setTweak={setTweak} />
+
+        {timelineForPoem && (
+          <div className="ouv-modal-backdrop" onClick={() => setTimelineForPoem(null)}>
+            <div className="ouv-modal" onClick={e => e.stopPropagation()}>
+              <div className="ouv-modal-head">
+                <div className="ouv-modal-eyebrow">Timeline</div>
+                <div className="ouv-modal-title">{timelineForPoem.title || 'Untitled Poem'}</div>
+                <div className="ouv-modal-sub">Publish any saved checkpoint as the current public version.</div>
+                <button className="ouv-modal-close" onClick={() => setTimelineForPoem(null)}>×</button>
+              </div>
+              <div style={{ padding: '16px', maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {timelineLoading && <div className="ouv-modal-empty">Loading checkpoints...</div>}
+                {!timelineLoading && timelineEntries.length === 0 && <div className="ouv-modal-empty">No checkpoints yet.</div>}
+                {!timelineLoading && timelineEntries.map(cp => (
+                  <div key={cp.id} style={{ border: '1px solid var(--rule)', borderRadius: '6px', padding: '10px', background: 'var(--paper)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{cp.title || 'Untitled checkpoint'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--mute)' }}>{new Date(cp.timestamp || Date.now()).toLocaleString()}</div>
+                      </div>
+                      <button
+                        className="ouv-btn ouv-btn-primary"
+                        style={{ fontSize: '11px', padding: '3px 8px' }}
+                        onClick={() => publishCheckpoint(cp.id)}
+                      >
+                        Publish this
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </>
     );
   }

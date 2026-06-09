@@ -36,7 +36,7 @@
   }
 
   // ---- main editor -----------------------------------------------------
-  function Editor({ active, onChange, text, setText, paletteHint, gutter = 'right', showAlphabet = true }) {
+  function Editor({ active, onChange, text, setText, title, setTitle, onSave, onPublish, statusMessage, paletteHint, lineageMeta, gutter = 'right', showAlphabet = true }) {
     const taRef = useRef(null);
     const engine = useMemo(() => buildEngine(active), [active]);
     const { shaking, why, whyKey, shake } = useShake();
@@ -97,6 +97,36 @@
           <span className="ouv-cbar-desc">{engine.describe()}</span>
           {why && <span className="ouv-why" key={whyKey}>{why}</span>}
         </div>
+        <input
+          type="text"
+          placeholder="Untitled Poem"
+          value={title || ''}
+          onChange={e => setTitle(e.target.value)}
+          style={{
+            fontFamily: '"Cormorant Garamond", "EB Garamond", Georgia, serif',
+            fontSize: '28px',
+            fontWeight: '600',
+            border: 'none',
+            background: 'transparent',
+            outline: 'none',
+            width: '100%',
+            marginBottom: '16px',
+            color: 'var(--ink)',
+            padding: '0 0 8px 0',
+            borderBottom: '1px dashed var(--rule)'
+          }}
+        />
+        {lineageMeta?.text && (
+          <div className="ouv-constraint-bar" style={{ marginTop: '-2em', marginBottom: '-0.5em', fontSize: '11px', padding: '6px 0px', fontStyle: 'normal' }}>
+            <span className="ouv-cbar-label">By</span>
+            <span className="ouv-cbar-desc" style={{fontSize: '11px', color: '#b42318', fontFamily: 'var(--mono)', fontStyle: 'normal'}}>
+              {lineageMeta.text}
+              {lineageMeta.showEtAl && (
+                <span style={{ marginLeft: '4px', textDecoration: 'underline dotted', cursor: 'help' }} title={lineageMeta.tooltip || ''}>et al.</span>
+              )}
+            </span>
+          </div>
+        )}
         <div className={`ouv-paper-row gutter-${gutter}`}>
           {gutter === 'left' && <Gutter lines={gutterLines} />}
           <div className={`ouv-paper${shaking ? ' ouv-shaking' : ''}`}>
@@ -119,8 +149,13 @@
             {text.trim() ? `${text.trim().split(/\s+/).length} words · ${lines.length} lines` : 'unwritten'}
           </div>
           <div className="ouv-actions-buttons">
-            <button className="ouv-btn ouv-btn-ghost" type="button">Save</button>
-            <button className="ouv-btn ouv-btn-primary" type="button">Publish</button>
+            {statusMessage && (
+              <span style={{ fontSize: '11px', color: 'var(--accent)', fontStyle: 'italic', marginRight: '8px' }}>
+                {statusMessage}
+              </span>
+            )}
+            <button className="ouv-btn ouv-btn-ghost" type="button" onClick={onSave} disabled={!text.trim()}>Save</button>
+            <button className="ouv-btn ouv-btn-primary" type="button" onClick={onPublish} disabled={!text.trim()}>Publish</button>
           </div>
         </div>
       </div>
@@ -253,7 +288,7 @@
 
     // For script constraint hooks
     const [hooks, setHooks] = useState(() => {
-      const h = { canInsert: '', canBreakSpace: '', canBreakLine: '', lineFeedback: '' };
+      const h = { validateToken: '', validateStructure: '' };
       if (entry.script?.hooks) {
         Object.assign(h, entry.script.hooks);
       }
@@ -289,7 +324,7 @@
         } else if (entry.script) {
           const activeHooks = {};
           Object.entries(hooks).forEach(([k, v]) => {
-            if (v && v.trim()) activeHooks[k] = v;
+            if (v && v.trim()) activeHooks[k] = v.trim();
           });
           const inst = window.Ouvroir.makeScriptedConstraint({
             title: title,
@@ -319,176 +354,219 @@
       }
     };
 
-    if (isEditing) {
-      return (
-        <div className="ouv-detail" style={{ border: '1px solid var(--accent)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span className="ouv-detail-label" style={{ color: 'var(--accent)' }}>Edit Constraint</span>
-            <button className="ouv-btn" style={{ fontSize: '10px', padding: '2px 6px' }} onClick={() => setIsEditing(false)}>Cancel</button>
+    return (
+      <>
+        <div className="ouv-detail">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="ouv-detail-label">Constraint Details</span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {(entry.regex || entry.script || formSchema) && (
+                <button
+                  className="ouv-btn"
+                  style={{ fontSize: '10px', padding: '2px 6px', borderColor: 'var(--accent)' }}
+                  onClick={() => setIsEditing(true)}
+                >
+                  Edit
+                </button>
+              )}
+              <button className="ouv-btn" style={{ fontSize: '10px', padding: '2px 6px' }} onClick={onClose}>Close</button>
+            </div>
+          </div>
+          <div className="ouv-detail-row">
+            <div className="ouv-detail-label">Description</div>
+            <div className="ouv-detail-text">{entry.instance?.description || entry.description}</div>
           </div>
 
-          {err && <div className="ouv-nl-err" style={{ marginBottom: '8px' }}>⚠ {err}</div>}
-
           {entry.regex && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div className="ouv-param">
-                <span className="ouv-detail-label">Pattern (Regex)</span>
-                <input
-                  type="text"
-                  className="ouv-input ouv-input-mono"
-                  value={regexSrc}
-                  onChange={e => setRegexSrc(e.target.value)}
-                />
-              </div>
-              <div className="ouv-param">
-                <span className="ouv-detail-label">Flags</span>
-                <input
-                  type="text"
-                  className="ouv-input ouv-input-mono"
-                  value={regexFlags}
-                  onChange={e => setRegexFlags(e.target.value)}
-                />
-              </div>
-              <div className="ouv-param">
-                <span className="ouv-detail-label">Description</span>
-                <textarea
-                  className="ouv-input"
-                  rows={2}
-                  value={desc}
-                  onChange={e => setDesc(e.target.value)}
-                />
-              </div>
+            <div className="ouv-detail-row">
+              <div className="ouv-detail-label">Regex</div>
+              <code style={{ fontFamily: 'var(--mono)', fontSize: '12px', background: 'var(--field)', padding: '4px 6px', borderRadius: '3px', wordBreak: 'break-all' }}>
+                /{entry.regex.source}/{entry.regex.flags || ''}
+              </code>
             </div>
           )}
 
           {entry.script && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div className="ouv-param">
-                <span className="ouv-detail-label">Title</span>
-                <input
-                  type="text"
-                  className="ouv-input"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                />
-              </div>
-              <div className="ouv-param">
-                <span className="ouv-detail-label">Description</span>
-                <textarea
-                  className="ouv-input"
-                  rows={2}
-                  value={desc}
-                  onChange={e => setDesc(e.target.value)}
-                />
-              </div>
-              {Object.keys(hooks).map(hookName => (
-                <div className="ouv-param" key={hookName}>
-                  <span className="ouv-detail-label">{hookName}(ctx, ...)</span>
-                  <textarea
-                    className="ouv-input ouv-input-mono"
-                    rows={3}
-                    placeholder="// hook code"
-                    value={hooks[hookName]}
-                    onChange={e => setHooks({ ...hooks, [hookName]: e.target.value })}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {formSchema && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ fontWeight: 500, fontSize: '13px', fontFamily: 'var(--serif)' }}>{formSchema.name}</div>
-              <div style={{ fontStyle: 'italic', fontSize: '11px', color: 'var(--mute)' }}>{formSchema.blurb}</div>
-              {(formSchema.params || []).map(p => (
-                <div className="ouv-param" key={p.id}>
-                  <span className="ouv-detail-label">{p.name || p.id}</span>
-                  {p.type === 'boolean' ? (
-                    <input
-                      type="checkbox"
-                      checked={!!formParams[p.id]}
-                      onChange={e => setFormParams({ ...formParams, [p.id]: e.target.checked })}
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      className="ouv-input"
-                      value={formParams[p.id] ?? ''}
-                      onChange={e => setFormParams({ ...formParams, [p.id]: e.target.value })}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-            <button className="ouv-btn ouv-btn-primary" style={{ padding: '4px 12px', fontSize: '12px' }} onClick={handleSave}>
-              Save Changes
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="ouv-detail">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="ouv-detail-label">Constraint Details</span>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            {(entry.regex || entry.script || formSchema) && (
-              <button
-                className="ouv-btn"
-                style={{ fontSize: '10px', padding: '2px 6px', borderColor: 'var(--accent)' }}
-                onClick={() => setIsEditing(true)}
-              >
-                Edit
-              </button>
-            )}
-            <button className="ouv-btn" style={{ fontSize: '10px', padding: '2px 6px' }} onClick={onClose}>Close</button>
-          </div>
-        </div>
-        <div className="ouv-detail-row">
-          <div className="ouv-detail-label">Description</div>
-          <div className="ouv-detail-text">{entry.instance?.description || entry.description}</div>
-        </div>
-
-        {entry.regex && (
-          <div className="ouv-detail-row">
-            <div className="ouv-detail-label">Regex</div>
-            <code style={{ fontFamily: 'var(--mono)', fontSize: '12px', background: 'var(--field)', padding: '4px 6px', borderRadius: '3px', wordBreak: 'break-all' }}>
-              /{entry.regex.source}/{entry.regex.flags || ''}
-            </code>
-          </div>
-        )}
-
-        {entry.script && (
-          <div className="ouv-detail-row">
-            <div className="ouv-detail-label">Code Constraints</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-              {Object.entries(entry.script.hooks || {}).map(([hookName, code]) => (
-                <div key={hookName} style={{ background: 'var(--field)', border: '1px solid var(--rule)', borderRadius: '4px', padding: '8px' }}>
-                  <div style={{ fontSize: '10px', fontFamily: 'var(--mono)', color: 'var(--accent)', fontWeight: 600, borderBottom: '1px solid var(--rule)', paddingBottom: '3px', marginBottom: '4px' }}>
-                    {hookName}(ctx, ...)
+            <div className="ouv-detail-row">
+              <div className="ouv-detail-label">Code Constraints</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                {Object.entries(entry.script.hooks || {}).map(([hookName, code]) => (
+                  <div key={hookName} style={{ background: 'var(--field)', border: '1px solid var(--rule)', borderRadius: '4px', padding: '8px' }}>
+                    <div style={{ fontSize: '10px', fontFamily: 'var(--mono)', color: 'var(--accent)', fontWeight: 600, borderBottom: '1px solid var(--rule)', paddingBottom: '3px', marginBottom: '4px' }}>
+                      {hookName}({hookName === 'validateToken' ? 'token, ctx' : 'words, ctx, op'})
+                    </div>
+                    <pre style={{ margin: 0, overflowX: 'auto' }}>
+                      {highlightJS(code)}
+                    </pre>
                   </div>
-                  <pre style={{ margin: 0, overflowX: 'auto' }}>
-                    {highlightJS(code)}
-                  </pre>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {entry.community && (
-          <div className="ouv-detail-row">
-            <div className="ouv-detail-label">Author</div>
-            <div className="ouv-detail-text">
-              @{entry.community.author} · <em>{entry.community.name}</em>
+          {entry.community && (
+            <div className="ouv-detail-row">
+              <div className="ouv-detail-label">Author</div>
+              <div className="ouv-detail-text">
+                @{entry.community.author} · <em>{entry.community.name}</em>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {isEditing && (
+          <div className="ouv-modal-backdrop" onClick={() => setIsEditing(false)}>
+            <div className="ouv-modal" onClick={e => e.stopPropagation()} style={{ width: 'min(780px, 95vw)', maxHeight: '90vh' }}>
+              <div className="ouv-modal-head">
+                <div className="ouv-modal-eyebrow">Editor</div>
+                <div className="ouv-modal-title">Edit Constraint</div>
+                <div className="ouv-modal-sub">
+                  Modify the rules for "{title || entry.instance?.title || 'Custom Constraint'}"
+                </div>
+                <button className="ouv-modal-close" onClick={() => setIsEditing(false)}>×</button>
+              </div>
+
+              <div style={{ padding: '24px 28px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {err && <div className="ouv-nl-err" style={{ marginBottom: '8px' }}>⚠ {err}</div>}
+
+                {entry.regex && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div className="ouv-param">
+                      <span className="ouv-detail-label">Pattern (Regex string)</span>
+                      <input
+                        type="text"
+                        className="ouv-input ouv-input-mono"
+                        value={regexSrc}
+                        onChange={e => setRegexSrc(e.target.value)}
+                        style={{ fontSize: '13px' }}
+                      />
+                      <div style={{ marginTop: '4px' }}>
+                        <span className="ouv-detail-label" style={{ fontSize: '11px', color: 'var(--mute)' }}>Preview: </span>
+                        <code style={{ fontFamily: 'var(--mono)', fontSize: '12px', background: 'var(--field)', padding: '2px 6px', borderRadius: '3px', color: 'var(--accent)' }}>
+                          /{regexSrc || '.*'}/{regexFlags}
+                        </code>
+                      </div>
+                    </div>
+                    <div className="ouv-param">
+                      <span className="ouv-detail-label">Flags</span>
+                      <input
+                        type="text"
+                        className="ouv-input ouv-input-mono"
+                        value={regexFlags}
+                        onChange={e => setRegexFlags(e.target.value)}
+                        style={{ fontSize: '13px' }}
+                      />
+                    </div>
+                    <div className="ouv-param">
+                      <span className="ouv-detail-label">Description</span>
+                      <textarea
+                        className="ouv-input"
+                        rows={2}
+                        value={desc}
+                        onChange={e => setDesc(e.target.value)}
+                        style={{ fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {entry.script && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div className="ouv-param">
+                      <span className="ouv-detail-label">Title</span>
+                      <input
+                        type="text"
+                        className="ouv-input"
+                        value={title}
+                        onChange={e => setTitle(e.target.value)}
+                        style={{ fontSize: '13px' }}
+                      />
+                    </div>
+                    <div className="ouv-param">
+                      <span className="ouv-detail-label">Description</span>
+                      <textarea
+                        className="ouv-input"
+                        rows={2}
+                        value={desc}
+                        onChange={e => setDesc(e.target.value)}
+                        style={{ fontSize: '13px' }}
+                      />
+                    </div>
+                    {Object.keys(hooks).map(hookName => (
+                      <div className="ouv-param" key={hookName}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <span className="ouv-detail-label" style={{ fontWeight: 600 }}>
+                            {hookName}({hookName === 'validateToken' ? 'token, ctx' : 'words, ctx, op'})
+                          </span>
+                          <span style={{ fontSize: '10px', color: 'var(--mute)', fontFamily: 'var(--mono)' }}>JavaScript</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <textarea
+                            className="ouv-input ouv-input-mono"
+                            rows={6}
+                            placeholder="// Hook code logic..."
+                            value={hooks[hookName] || ''}
+                            onChange={e => setHooks({ ...hooks, [hookName]: e.target.value })}
+                            style={{ fontSize: '12px', resize: 'vertical' }}
+                          />
+                          <div
+                            style={{
+                              padding: '8px',
+                              background: 'var(--field)',
+                              border: '1px solid var(--rule)',
+                              borderRadius: '4px',
+                              overflowY: 'auto',
+                              maxHeight: '180px',
+                              whiteSpace: 'pre-wrap',
+                              fontFamily: 'var(--mono)',
+                              fontSize: '11px',
+                              color: 'var(--ink)'
+                            }}
+                          >
+                            {highlightJS(hooks[hookName])}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {formSchema && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ fontWeight: 500, fontSize: '14px', fontFamily: 'var(--serif)' }}>{formSchema.name}</div>
+                    <div style={{ fontStyle: 'italic', fontSize: '12px', color: 'var(--mute)' }}>{formSchema.blurb}</div>
+                    {(formSchema.params || []).map(p => (
+                      <div className="ouv-param" key={p.id}>
+                        <span className="ouv-detail-label">{p.name || p.id}</span>
+                        {p.type === 'boolean' ? (
+                          <input
+                            type="checkbox"
+                            checked={!!formParams[p.id]}
+                            onChange={e => setFormParams({ ...formParams, [p.id]: e.target.checked })}
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            className="ouv-input"
+                            value={formParams[p.id] ?? ''}
+                            onChange={e => setFormParams({ ...formParams, [p.id]: e.target.value })}
+                            style={{ fontSize: '13px' }}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '14px 28px', borderTop: '1px solid var(--rule)' }}>
+                <button className="ouv-btn" onClick={() => setIsEditing(false)}>Cancel</button>
+                <button className="ouv-btn ouv-btn-primary" onClick={handleSave}>Save Changes</button>
+              </div>
             </div>
           </div>
         )}
-      </div>
+      </>
     );
   }
 

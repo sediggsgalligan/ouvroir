@@ -107,6 +107,155 @@
     .star-badge:hover {
       background: var(--rule);
     }
+    .author-line {
+      font-size: 11px;
+      color: #b42318;
+      font-family: var(--mono);
+      margin-top: 2px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .etal-btn {
+      border: 0;
+      background: transparent;
+      color: #b42318;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 0;
+      font: inherit;
+    }
+    .timeline-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      padding: 16px;
+    }
+    .timeline-modal {
+      width: min(860px, 100%);
+      max-height: 88vh;
+      overflow: auto;
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+      padding: 16px;
+    }
+    .timeline-line {
+      position: relative;
+      margin-top: 12px;
+      padding-left: 18px;
+      border-left: 2px solid var(--accent);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .timeline-node {
+      position: relative;
+      background: var(--field);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    .timeline-node::before {
+      content: '';
+      position: absolute;
+      left: -24px;
+      top: 14px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--paper);
+    }
+    .subtabs {
+      display: flex;
+      gap: 8px;
+      margin: 0 0 14px 0;
+      flex-wrap: wrap;
+    }
+    .subtab-btn {
+      border: 1px solid var(--rule);
+      background: var(--field);
+      color: var(--mute);
+      font-size: 12px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .subtab-btn.active {
+      color: var(--ink);
+      border-color: var(--accent);
+      background: rgba(217, 119, 87, 0.08);
+    }
+    .actions-wrap {
+      position: relative;
+    }
+    .actions-menu {
+      position: absolute;
+      right: 0;
+      top: 26px;
+      z-index: 20;
+      min-width: 180px;
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .actions-item {
+      text-align: left;
+      border: 0;
+      background: transparent;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: 12px;
+      color: var(--ink);
+      cursor: pointer;
+    }
+    .actions-item:hover {
+      background: var(--field);
+    }
+    .actions-item.danger {
+      color: #b42318;
+      font-weight: 700;
+    }
+    .confirm-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.38);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1200;
+      padding: 16px;
+    }
+    .confirm-modal {
+      width: min(560px, 100%);
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.22);
+      padding: 16px;
+    }
+    .danger-btn {
+      border: 1px solid #b42318;
+      color: #b42318;
+      background: rgba(180, 35, 24, 0.08);
+      font-weight: 800;
+    }
+    .danger-btn[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body class="theme-press">
@@ -129,9 +278,15 @@
 
     function PoemsApp() {
       const [poems, setPoems] = useState([]);
+      const [myPoems, setMyPoems] = useState([]);
       const [loading, setLoading] = useState(true);
-      const [tab, setTab] = useState('all'); // 'all' or 'favorites'
+      const [tab, setTab] = useState('mine'); // 'mine' | 'all' | 'favorites'
+      const [mySection, setMySection] = useState('projects'); // 'projects' | 'published' | 'archive'
       const [searchQuery, setSearchQuery] = useState('');
+      const [timelinePoem, setTimelinePoem] = useState(null);
+      const [actionsOpenId, setActionsOpenId] = useState(null);
+      const [managePoem, setManagePoem] = useState(null);
+      const [deleteNameInput, setDeleteNameInput] = useState('');
       
       const [token, setToken] = useState(() => localStorage.getItem('google_id_token') || null);
       const [firstName, setFirstName] = useState(() => localStorage.getItem('user_first_name') || null);
@@ -180,16 +335,27 @@
           return;
         }
         try {
-          const res = await fetch('http://localhost:3000/api/poems/all', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (res.status === 401 || res.status === 403) {
+          const [allRes, mineRes] = await Promise.all([
+            fetch('http://localhost:3000/api/poems/all', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            }),
+            fetch('http://localhost:3000/api/poems/mine', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+          ]);
+
+          if ([allRes.status, mineRes.status].includes(401) || [allRes.status, mineRes.status].includes(403)) {
             handleSignOut();
             return;
           }
-          if (res.ok) {
-            const data = await res.json();
-            setPoems(data);
+
+          if (allRes.ok) {
+            const allData = await allRes.json();
+            setPoems(allData);
+          }
+          if (mineRes.ok) {
+            const mineData = await mineRes.json();
+            setMyPoems(mineData);
           }
         } catch (err) {
           console.error('Error fetching poems:', err);
@@ -216,7 +382,7 @@
           if (res.ok) {
             const data = await res.json();
             // Optimistically update star count and status locally
-            setPoems(prev => prev.map(p => {
+            const updateStars = (arr) => arr.map(p => {
               if (p.id === poemId) {
                 return {
                   ...p,
@@ -225,16 +391,108 @@
                 };
               }
               return p;
-            }));
+            });
+            setPoems(prev => updateStars(prev));
+            setMyPoems(prev => updateStars(prev));
           }
         } catch (err) {
           console.error('Error toggling star:', err);
         }
       };
 
-      const filteredPoems = poems.filter(p => {
-        if (tab === 'favorites' && !p.starred) return false;
-        
+      const deleteMyPoem = async (poemId) => {
+        if (!token) return;
+
+        try {
+          const res = await fetch(`http://localhost:3000/api/poems/${poemId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.status === 401 || res.status === 403) {
+            handleSignOut();
+            return;
+          }
+          if (res.ok) {
+            setMyPoems(prev => prev.filter(p => p.id !== poemId));
+            setPoems(prev => prev.filter(p => p.id !== poemId));
+            setManagePoem(null);
+            setDeleteNameInput('');
+          }
+        } catch (err) {
+          console.error('Error deleting poem:', err);
+        }
+      };
+
+      const archiveMyPoem = async (poemId, archived = true) => {
+        if (!token) return;
+        try {
+          const res = await fetch(`http://localhost:3000/api/poems/${poemId}/archive`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ archived })
+          });
+          if (res.status === 401 || res.status === 403) {
+            handleSignOut();
+            return;
+          }
+          if (res.ok) {
+            const payload = await res.json();
+            const nextPoem = payload.poem;
+            const updateOne = (arr) => arr.map(p => p.id === poemId ? { ...p, ...nextPoem } : p);
+            setMyPoems(prev => updateOne(prev));
+            setPoems(prev => updateOne(prev));
+          }
+        } catch (err) {
+          console.error('Error archiving poem:', err);
+        }
+      };
+
+      const publishMyPoem = async (poemId) => {
+        if (!token) return;
+        try {
+          const res = await fetch(`http://localhost:3000/api/poems/${poemId}/publish`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.status === 401 || res.status === 403) {
+            handleSignOut();
+            return;
+          }
+          if (res.ok) {
+            const payload = await res.json();
+            const nextPoem = payload.poem;
+            const upsert = (arr) => {
+              const exists = arr.some(p => p.id === poemId);
+              if (!exists) return [nextPoem, ...arr];
+              return arr.map(p => p.id === poemId ? { ...p, ...nextPoem } : p);
+            };
+            setMyPoems(prev => upsert(prev));
+            setPoems(prev => upsert(prev));
+          }
+        } catch (err) {
+          console.error('Error publishing poem:', err);
+        }
+      };
+
+      const favoriteSource = [
+        ...poems,
+        ...myPoems.filter(mp => !poems.some(p => p.id === mp.id))
+      ];
+
+      const myProjects = myPoems.filter(p => p.archived !== true && p.public !== true);
+      const myPublished = myPoems.filter(p => p.archived !== true && p.public === true);
+      const myArchive = myPoems.filter(p => p.archived === true);
+
+      const sourcePoems = tab === 'mine'
+        ? (mySection === 'projects' ? myProjects : mySection === 'published' ? myPublished : myArchive)
+        : tab === 'favorites'
+          ? favoriteSource.filter(p => p.starred && p.archived !== true)
+          : poems;
+
+      const filteredPoems = sourcePoems.filter(p => {
         const needle = searchQuery.toLowerCase().trim();
         if (!needle) return true;
 
@@ -248,7 +506,28 @@
         return matchText || matchTitle || matchAuthor || matchConstraints;
       });
 
-      const favoriteCount = poems.filter(p => p.starred).length;
+      const favoriteCount = favoriteSource.filter(p => p.starred && p.archived !== true).length;
+
+      const renderAuthorLine = (p) => {
+        if (p.isRiff && p.originalAuthor && p.author) {
+          return (
+            <div className="author-line">
+              <span>@{p.author} - riffing off of @{p.originalAuthor}</span>
+              <button
+                className="etal-btn"
+                title="Show full collaboration timeline"
+                onClick={() => setTimelinePoem(p)}
+              >
+                et al.
+              </button>
+            </div>
+          );
+        }
+        if (p.author) {
+          return <div className="author-line">@{p.author}</div>;
+        }
+        return null;
+      };
 
       return (
         <div className="poems-page">
@@ -273,20 +552,6 @@
               ) : (
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <div id="google_signin_button"></div>
-                  <input 
-                    type="text" 
-                    placeholder="Guest username..." 
-                    className="ouv-input"
-                    style={{ fontSize: '11px', padding: '4px 6px' }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.target.value.trim()) {
-                        const handle = e.target.value.trim();
-                        localStorage.setItem('google_id_token', 'guest:' + handle);
-                        localStorage.setItem('user_first_name', handle);
-                        window.location.reload();
-                      }
-                    }}
-                  />
                 </div>
               )}
             </div>
@@ -295,12 +560,18 @@
           <main className="poems-content">
             {!token ? (
               <div style={{ padding: '64px', textAlign: 'center', fontStyle: 'italic', color: 'var(--mute)', background: 'var(--paper)', borderRadius: '4px', border: '1px solid var(--rule)' }}>
-                Please sign in with Google or enter a Guest username to view the community poetry list and favorites.
+                Please sign in with Google to view the community poetry list and favorites.
               </div>
             ) : (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
                   <div className="tabs">
+                    <button 
+                      className={`tab-btn ${tab === 'mine' ? 'active' : ''}`}
+                      onClick={() => setTab('mine')}
+                    >
+                      My Poetry ({myPoems.length})
+                    </button>
                     <button 
                       className={`tab-btn ${tab === 'all' ? 'active' : ''}`}
                       onClick={() => setTab('all')}
@@ -314,16 +585,32 @@
                       My Favorites ({favoriteCount})
                     </button>
                   </div>
-                  
-                  <input
-                    type="text"
-                    className="ouv-input"
-                    placeholder="Search titles, authors, text, or constraints..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    style={{ maxWidth: '360px', fontSize: '13px' }}
-                  />
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <input
+                      type="text"
+                      className="ouv-input"
+                      placeholder="Search titles, authors, text, or constraints..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      style={{ maxWidth: '360px', fontSize: '13px' }}
+                    />
+                  </div>
                 </div>
+
+                {tab === 'mine' && (
+                  <div className="subtabs">
+                    <button className={`subtab-btn ${mySection === 'projects' ? 'active' : ''}`} onClick={() => setMySection('projects')}>
+                      My Poetry Projects ({myProjects.length})
+                    </button>
+                    <button className={`subtab-btn ${mySection === 'published' ? 'active' : ''}`} onClick={() => setMySection('published')}>
+                      My Published Poetry ({myPublished.length})
+                    </button>
+                    <button className={`subtab-btn ${mySection === 'archive' ? 'active' : ''}`} onClick={() => setMySection('archive')}>
+                      My Archive ({myArchive.length})
+                    </button>
+                  </div>
+                )}
 
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '48px', color: 'var(--mute)', fontStyle: 'italic' }}>
@@ -331,24 +618,27 @@
                   </div>
                 ) : filteredPoems.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '48px', color: 'var(--mute)', fontStyle: 'italic' }}>
-                    {searchQuery ? 'No poems match your search.' : tab === 'favorites' ? 'You have no favorited poems yet.' : 'No poetry has been saved yet.'}
+                    {searchQuery ? 'No poems match your search.' : tab === 'favorites' ? 'You have no favorited poems yet.' : tab === 'mine' ? (mySection === 'projects' ? 'No active projects.' : mySection === 'published' ? 'No published works yet.' : 'Archive is empty.') : 'No poetry has been saved yet.'}
                   </div>
                 ) : (
+                  <>
                   <div className="poem-card-grid">
                     {filteredPoems.map(p => (
                       <div key={p.id} className="ouv-cf-card" style={{ display: 'flex', flexDirection: 'column', padding: '20px', cursor: 'default' }}>
                         <div className="ouv-cf-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div>
                             <div className="ouv-cf-name" style={{ fontSize: '18px', fontWeight: 500 }}>{p.title}</div>
-                            {p.author && <div style={{ fontSize: '11px', color: 'var(--accent)', fontFamily: 'var(--mono)', marginTop: '2px' }}>@{p.author}</div>}
+                            {renderAuthorLine(p)}
                           </div>
-                          <button 
-                            className={`star-badge ${p.starred ? 'on' : ''}`}
-                            onClick={() => toggleStarPoem(p.id)}
-                            title={p.starred ? 'Remove favorite' : 'Add favorite'}
-                          >
-                            ★ {p.starCount || 0}
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button 
+                              className={`star-badge ${p.starred ? 'on' : ''}`}
+                              onClick={() => toggleStarPoem(p.id)}
+                              title={p.starred ? 'Remove favorite' : 'Add favorite'}
+                            >
+                              ★ {p.starCount || 0}
+                            </button>
+                          </div>
                         </div>
 
                         <pre className="poem-pre">{p.text}</pre>
@@ -379,7 +669,39 @@
                           </div>
                         )}
 
-                        <div style={{ marginTop: '16px', paddingTop: '10px', borderTop: '1px dashed var(--rule)', display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{ marginTop: '16px', paddingTop: '10px', borderTop: '1px dashed var(--rule)', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+{tab === 'mine' && (
+                              <div className="actions-wrap">
+                                <button
+                                  className="ouv-btn ouv-btn-ghost"
+                                  style={{ fontSize: '11px', padding: '3px 8px' }}
+                                  onClick={() => setActionsOpenId(actionsOpenId === p.id ? null : p.id)}
+                                >
+                                  Actions ▾
+                                </button>
+                                {actionsOpenId === p.id && (
+                                  <div className="actions-menu">
+                                    {!p.public && p.archived !== true && (
+                                      <button className="actions-item" onClick={() => { publishMyPoem(p.id); setActionsOpenId(null); }}>
+                                        Publish
+                                      </button>
+                                    )}
+                                    {p.archived === true ? (
+                                      <button className="actions-item" onClick={() => { archiveMyPoem(p.id, false); setActionsOpenId(null); }}>
+                                        Restore from archive
+                                      </button>
+                                    ) : (
+                                      <button className="actions-item" onClick={() => { archiveMyPoem(p.id, true); setActionsOpenId(null); }}>
+                                        Archive
+                                      </button>
+                                    )}
+                                    <button className="actions-item danger" onClick={() => { setManagePoem(p); setDeleteNameInput(''); setActionsOpenId(null); }}>
+                                      Delete...
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           <a 
                             href={`index.html#load-${p.id}`} 
                             className="ouv-btn ouv-btn-secondary" 
@@ -391,10 +713,70 @@
                       </div>
                     ))}
                   </div>
+                  </>
                 )}
               </>
             )}
           </main>
+
+          {managePoem && (
+            <div className="confirm-overlay" onClick={() => setManagePoem(null)}>
+              <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+                <div style={{ fontFamily: 'var(--serif)', fontSize: '22px', marginBottom: '6px' }}>Confirm Poem Deletion</div>
+                <div style={{ fontSize: '13px', color: 'var(--mute)', marginBottom: '12px' }}>
+                  To permanently delete this poem, type its name exactly:
+                </div>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: '#b42318', marginBottom: '8px' }}>
+                  {managePoem.title}
+                </div>
+                <input
+                  className="ouv-input"
+                  value={deleteNameInput}
+                  onChange={e => setDeleteNameInput(e.target.value)}
+                  placeholder="Type poem name to confirm"
+                  style={{ width: 'stretch', marginBottom: '14px' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <button className="ouv-btn ouv-btn-ghost" onClick={() => setManagePoem(null)}>Cancel</button>
+                  <button className="ouv-btn ouv-btn-secondary" onClick={() => { archiveMyPoem(managePoem.id, true); setManagePoem(null); }}>
+                    Archive instead
+                  </button>
+                  <button
+                    className="ouv-btn danger-btn"
+                    disabled={deleteNameInput.trim() !== (managePoem.title || '').trim()}
+                    onClick={() => deleteMyPoem(managePoem.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {timelinePoem && (
+            <div className="timeline-overlay" onClick={() => setTimelinePoem(null)}>
+              <div className="timeline-modal" onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                  <div>
+                    <div style={{ fontFamily: 'var(--serif)', fontSize: '24px', marginBottom: '4px' }}>{timelinePoem.title}</div>
+                    <div style={{ color: 'var(--mute)', fontSize: '13px' }}>Authorship and collaboration timeline</div>
+                  </div>
+                  <button className="ouv-btn ouv-btn-ghost" onClick={() => setTimelinePoem(null)}>Close</button>
+                </div>
+                <div className="timeline-line">
+                  {(timelinePoem.ancestry || []).map((node, idx) => (
+                    <div className="timeline-node" key={`${node.id}-${idx}`}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                        <div style={{ fontWeight: 600 }}>{node.title || 'Untitled Poem'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--mute)' }}>{new Date(node.createdAt || Date.now()).toLocaleString()}</div>
+                      </div>
+                      <div style={{ marginTop: '4px', color: '#b42318', fontSize: '12px', fontFamily: 'var(--mono)' }}>@{node.author || 'Unknown'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }

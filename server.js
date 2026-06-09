@@ -312,6 +312,50 @@ function getConstraintKey(c) {
   return null;
 }
 
+// Ancestry chain walker
+function getAncestryChain(poem, db) {
+  const chain = [];
+  let current = poem;
+  const visited = new Set();
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    chain.unshift({
+      id: current.id,
+      title: current.title,
+      author: current.author,
+      userId: current.userId,
+      createdAt: current.createdAt || current.updatedAt || Date.now(),
+      public: current.public
+    });
+    if (current.parentPoemId) {
+      current = db.poems.find(p => p.id === current.parentPoemId);
+    } else {
+      break;
+    }
+  }
+  return chain;
+}
+
+function enrichPoemForViewer(poem, db, viewerUserId) {
+  const chain = getAncestryChain(poem, db);
+  const original = chain[0] || null;
+  const currentAuthor = poem.author;
+  const currentHandle = currentAuthor ? `@${currentAuthor}` : '@Unknown';
+  const originalHandle = original?.author ? `@${original.author}` : '@Unknown';
+
+  return {
+    ...poem,
+    ancestry: chain,
+    originalAuthor: original?.author || null,
+    originalUserId: original?.userId || null,
+    isRiff: !!original && !!currentAuthor && original.author !== currentAuthor,
+    riffSummary: !!original && !!currentAuthor && original.author !== currentAuthor
+      ? `${currentHandle} - riffing off of ${originalHandle} et al.`
+      : currentHandle,
+    viewerOwnsPoem: poem.userId === viewerUserId
+  };
+}
+
 // Poems endpoints
 app.get('/api/poems', checkGoogleAuth, (req, res) => {
   const db = readDb();
@@ -319,26 +363,147 @@ app.get('/api/poems', checkGoogleAuth, (req, res) => {
   res.json(userPoems);
 });
 
+app.get('/api/poems/mine', checkGoogleAuth, (req, res) => {
+  const db = readDb();
+  const userPoems = db.poems.filter(p => p.userId === req.user.email);
+
+  if (!db.poemStars) {
+    db.poemStars = [];
+  }
+
+  const result = userPoems.map(p => {
+    const starCount = db.poemStars.filter(s => s.poemId === p.id).length;
+    const starred = db.poemStars.some(s => s.userId === req.user.email && s.poemId === p.id);
+    const enriched = enrichPoemForViewer(p, db, req.user.email);
+    return {
+      ...enriched,
+      starred,
+      starCount
+    };
+  });
+
+  res.json(result);
+});
+
+app.get('/api/poems/all', checkGoogleAuth, (req, res) => {
+  const db = readDb();
+  const publicPoems = db.poems.filter(p => p.public === true && p.archived !== true);
+
+  if (!db.poemStars) {
+    db.poemStars = [];
+  }
+
+  const result = publicPoems.map(p => {
+    const starCount = db.poemStars.filter(s => s.poemId === p.id).length;
+    const starred = db.poemStars.some(s => s.userId === req.user.email && s.poemId === p.id);
+    const enriched = enrichPoemForViewer(p, db, req.user.email);
+    return {
+      ...enriched,
+      starred,
+      starCount
+    };
+  });
+
+  res.json(result);
+});
+
+app.get('/api/poems/:id/checkpoints', checkGoogleAuth, (req, res) => {
+  const { id } = req.params;
+  const db = readDb();
+  const poem = db.poems.find(p => p.id === id);
+
+  if (!poem) {
+    return res.status(404).json({ error: 'Poem not found' });
+  }
+
+  if (poem.userId !== req.user.email) {
+    return res.status(403).json({ error: 'Only the poem owner can view checkpoints' });
+  }
+
+  const checkpoints = (poem.checkpoints || []).slice().sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  return res.json({ poemId: poem.id, checkpoints });
+});
+
 app.post('/api/poems', checkGoogleAuth, (req, res) => {
-  const { title, text, constraints } = req.body;
+  const { id, title, text, constraints, public: isPublic } = req.body;
   if (!text) {
     return res.status(400).json({ error: 'Poem text is required' });
   }
 
   const db = readDb();
-  const poemId = 'p-' + Math.random().toString(36).slice(2, 9);
+  let poem = null;
 
-  const newPoem = {
-    id: poemId,
-    title: title || 'Untitled Poem',
-    text: text,
-    constraints: constraints || [],
-    userId: req.user.email,
-    author: req.user.given_name || req.user.name,
-    createdAt: Date.now()
-  };
+  // Check if we are updating an existing poem owned by this user
+  if (id) {
+    const existing = db.poems.find(p => p.id === id);
+    if (existing && existing.userId === req.user.email) {
+      poem = existing;
+    }
+  }
 
-  db.poems.push(newPoem);
+  if (poem) {
+    // Overwrite the existing poem
+    poem.title = title || 'Untitled Poem';
+    poem.text = text;
+    poem.constraints = constraints || [];
+    poem.public = isPublic === true;
+    if (typeof poem.archived !== 'boolean') {
+      poem.archived = false;
+    }
+    poem.updatedAt = Date.now();
+
+    if (!poem.checkpoints) {
+      poem.checkpoints = [];
+    }
+    poem.checkpoints.push({
+      id: 'cp-' + Math.random().toString(36).slice(2, 9),
+      timestamp: Date.now(),
+      title: poem.title,
+      text: poem.text,
+      constraints: poem.constraints,
+      public: poem.public,
+      author: req.user.given_name || req.user.name,
+      userId: req.user.email
+    });
+  } else {
+    // Create new poem (or fork)
+    const newId = 'p-' + Math.random().toString(36).slice(2, 9);
+    let parentPoemId = null;
+
+    if (id) {
+      const parent = db.poems.find(p => p.id === id);
+      if (parent) {
+        parentPoemId = parent.id;
+      }
+    }
+
+    poem = {
+      id: newId,
+      title: title || 'Untitled Poem',
+      text: text,
+      constraints: constraints || [],
+      userId: req.user.email,
+      author: req.user.given_name || req.user.name,
+      public: isPublic === true,
+      archived: false,
+      parentPoemId: parentPoemId,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      checkpoints: [
+        {
+          id: 'cp-' + Math.random().toString(36).slice(2, 9),
+          timestamp: Date.now(),
+          title: title || 'Untitled Poem',
+          text: text,
+          constraints: constraints || [],
+          public: isPublic === true,
+          author: req.user.given_name || req.user.name,
+          userId: req.user.email
+        }
+      ]
+    };
+    db.poems.push(poem);
+  }
 
   // Publish each used constraint to the marketplace
   if (Array.isArray(constraints)) {
@@ -367,7 +532,168 @@ app.post('/api/poems', checkGoogleAuth, (req, res) => {
   }
 
   writeDb(db);
-  res.json({ success: true, poem: newPoem });
+  res.json({ success: true, poem: enrichPoemForViewer(poem, db, req.user.email) });
+});
+
+app.post('/api/poems/:id/publish-checkpoint', checkGoogleAuth, (req, res) => {
+  const { id } = req.params;
+  const { checkpointId } = req.body || {};
+
+  if (!checkpointId) {
+    return res.status(400).json({ error: 'checkpointId is required' });
+  }
+
+  const db = readDb();
+  const poem = db.poems.find(p => p.id === id);
+
+  if (!poem) {
+    return res.status(404).json({ error: 'Poem not found' });
+  }
+
+  if (poem.userId !== req.user.email) {
+    return res.status(403).json({ error: 'Only the poem owner can publish checkpoints' });
+  }
+
+  const checkpoint = (poem.checkpoints || []).find(cp => cp.id === checkpointId);
+  if (!checkpoint) {
+    return res.status(404).json({ error: 'Checkpoint not found' });
+  }
+
+  poem.title = checkpoint.title || poem.title;
+  poem.text = checkpoint.text || poem.text;
+  poem.constraints = Array.isArray(checkpoint.constraints) ? checkpoint.constraints : (poem.constraints || []);
+  poem.public = true;
+  poem.updatedAt = Date.now();
+
+  if (!Array.isArray(poem.checkpoints)) {
+    poem.checkpoints = [];
+  }
+
+  poem.checkpoints.push({
+    id: 'cp-' + Math.random().toString(36).slice(2, 9),
+    timestamp: Date.now(),
+    title: poem.title,
+    text: poem.text,
+    constraints: poem.constraints,
+    public: poem.public,
+    author: req.user.given_name || req.user.name,
+    userId: req.user.email,
+    sourceCheckpointId: checkpointId
+  });
+
+  writeDb(db);
+  return res.json({ success: true, poem: enrichPoemForViewer(poem, db, req.user.email), publishedCheckpointId: checkpointId });
+});
+
+app.post('/api/poems/:id/publish', checkGoogleAuth, (req, res) => {
+  const { id } = req.params;
+  const db = readDb();
+  const poem = db.poems.find(p => p.id === id);
+
+  if (!poem) {
+    return res.status(404).json({ error: 'Poem not found' });
+  }
+
+  if (poem.userId !== req.user.email) {
+    return res.status(403).json({ error: 'Only the poem owner can publish this poem' });
+  }
+
+  poem.public = true;
+  poem.archived = false;
+  poem.updatedAt = Date.now();
+
+  if (!Array.isArray(poem.checkpoints)) {
+    poem.checkpoints = [];
+  }
+
+  poem.checkpoints.push({
+    id: 'cp-' + Math.random().toString(36).slice(2, 9),
+    timestamp: Date.now(),
+    title: poem.title,
+    text: poem.text,
+    constraints: poem.constraints || [],
+    public: poem.public,
+    author: req.user.given_name || req.user.name,
+    userId: req.user.email,
+    source: 'publish'
+  });
+
+  writeDb(db);
+  return res.json({ success: true, poem: enrichPoemForViewer(poem, db, req.user.email) });
+});
+
+app.post('/api/poems/:id/archive', checkGoogleAuth, (req, res) => {
+  const { id } = req.params;
+  const { archived = true } = req.body || {};
+  const db = readDb();
+  const poem = db.poems.find(p => p.id === id);
+
+  if (!poem) {
+    return res.status(404).json({ error: 'Poem not found' });
+  }
+
+  if (poem.userId !== req.user.email) {
+    return res.status(403).json({ error: 'Only the poem owner can archive this poem' });
+  }
+
+  poem.archived = archived === true;
+  poem.updatedAt = Date.now();
+
+  writeDb(db);
+  return res.json({ success: true, poem: enrichPoemForViewer(poem, db, req.user.email) });
+});
+
+app.delete('/api/poems/:id', checkGoogleAuth, (req, res) => {
+  const { id } = req.params;
+  const db = readDb();
+  const idx = db.poems.findIndex(p => p.id === id);
+
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Poem not found' });
+  }
+
+  const poem = db.poems[idx];
+  if (poem.userId !== req.user.email) {
+    return res.status(403).json({ error: 'Only the poem owner can delete this poem' });
+  }
+
+  db.poems.splice(idx, 1);
+  if (Array.isArray(db.poemStars)) {
+    db.poemStars = db.poemStars.filter(s => s.poemId !== id);
+  }
+
+  writeDb(db);
+  return res.json({ success: true, id });
+});
+
+app.post('/api/poems/:id/star', checkGoogleAuth, (req, res) => {
+  const { id } = req.params;
+  const db = readDb();
+
+  const poem = db.poems.find(p => p.id === id);
+  if (!poem) {
+    return res.status(404).json({ error: 'Poem not found' });
+  }
+
+  if (!db.poemStars) {
+    db.poemStars = [];
+  }
+
+  const starIndex = db.poemStars.findIndex(s => s.userId === req.user.email && s.poemId === id);
+  let starred = false;
+
+  if (starIndex > -1) {
+    db.poemStars.splice(starIndex, 1);
+  } else {
+    db.poemStars.push({
+      userId: req.user.email,
+      poemId: id
+    });
+    starred = true;
+  }
+
+  writeDb(db);
+  res.json({ success: true, starred });
 });
 
 // Marketplace & starring endpoints

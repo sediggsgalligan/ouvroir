@@ -428,6 +428,7 @@
           const user = parseJwt(response.credential);
           localStorage.setItem('user_first_name', user.given_name);
           window.dispatchEvent(new Event('auth-changed'));
+          window.location.reload();
         };
 
         google.accounts.id.initialize({
@@ -458,6 +459,11 @@
           // We only send the raw input here
           body: JSON.stringify({ userPrompt: desc })
         });
+
+        if (response.status === 401 || response.status === 403) {
+          window.forceSignOut();
+          return;
+        }
 
         const data = await response.json();
 
