@@ -266,9 +266,14 @@ app.post('/api/generate', checkGoogleAuth, async (req, res) => {
 });
 
 // Database utilities
-const dbPath = path.join(__dirname, 'db.json');
+const dbDir = process.env.DISK_PATH || __dirname;
+const dbPath = path.join(dbDir, 'db.json');
 
 function readDb() {
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
   if (!fs.existsSync(dbPath)) {
     const initDb = { poems: [], constraints: [], stars: [] };
     fs.writeFileSync(dbPath, JSON.stringify(initDb, null, 2), 'utf8');

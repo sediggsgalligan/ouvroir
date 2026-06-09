@@ -4,6 +4,19 @@
   'use strict';
   const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
+  const OUVROIR_API_BASE = (() => {
+    const fromWindow = (window.OUVROIR_API_BASE || '').trim();
+    if (fromWindow) return fromWindow.replace(/\/+$/, '');
+
+    const fromStorage = (localStorage.getItem('ouvroir_api_base') || '').trim();
+    if (fromStorage) return fromStorage.replace(/\/+$/, '');
+
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    return isLocal ? 'http://localhost:3000' : '';
+  })();
+
+  const apiUrl = (path) => `${OUVROIR_API_BASE}${path}`;
+
   let _uid = 0;
   const nextUid = () => `c${++_uid}`;
 
@@ -450,7 +463,7 @@
       setBusy(true); setErr(null);
 
       try {
-        const response = await fetch('http://localhost:3000/api/generate', {
+        const response = await fetch(apiUrl('/api/generate'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

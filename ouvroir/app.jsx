@@ -4,6 +4,19 @@
   'use strict';
   const { useState, useEffect, useMemo, useCallback } = React;
 
+  const OUVROIR_API_BASE = (() => {
+    const fromWindow = (window.OUVROIR_API_BASE || '').trim();
+    if (fromWindow) return fromWindow.replace(/\/+$/, '');
+
+    const fromStorage = (localStorage.getItem('ouvroir_api_base') || '').trim();
+    if (fromStorage) return fromStorage.replace(/\/+$/, '');
+
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    return isLocal ? 'http://localhost:3000' : '';
+  })();
+
+  const apiUrl = (path) => `${OUVROIR_API_BASE}${path}`;
+
   const DEFAULTS = /*EDITMODE-BEGIN*/{
     "theme": "press",
     "creator": "dropdown",
@@ -31,7 +44,7 @@
       if (!token) return;
       setLoading(true);
       try {
-        const res = await fetch('http://localhost:3000/api/constraints', {
+        const res = await fetch(apiUrl('/api/constraints'), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.status === 401 || res.status === 403) {
@@ -57,7 +70,7 @@
       e.stopPropagation(); // prevent adding when clicking star
       if (!token) return;
       try {
-        const res = await fetch(`http://localhost:3000/api/constraints/${id}/star`, {
+        const res = await fetch(apiUrl(`/api/constraints/${id}/star`), {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -164,7 +177,7 @@
         return;
       }
       try {
-        const res = await fetch('http://localhost:3000/api/poems/all', {
+        const res = await fetch(apiUrl('/api/poems/all'), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.status === 401 || res.status === 403) {
@@ -380,7 +393,7 @@
         return;
       }
       try {
-        const cRes = await fetch('http://localhost:3000/api/constraints', {
+        const cRes = await fetch(apiUrl('/api/constraints'), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (cRes.status === 401 || cRes.status === 403) {
@@ -392,7 +405,7 @@
           setStarredConstraints(cData.filter(c => c.starred));
         }
 
-        const pRes = await fetch('http://localhost:3000/api/poems/mine', {
+        const pRes = await fetch(apiUrl('/api/poems/mine'), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (pRes.status === 401 || pRes.status === 403) {
@@ -471,7 +484,7 @@
       setStatusMessage(isPublic ? 'Publishing...' : 'Saving...');
       try {
         const serialized = active.map(c => window.Ouvroir.serializeConstraint(c));
-        const res = await fetch('http://localhost:3000/api/poems', {
+        const res = await fetch(apiUrl('/api/poems'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -568,7 +581,7 @@
       setTimelineEntries([]);
       setTimelineLoading(true);
       try {
-        const res = await fetch(`http://localhost:3000/api/poems/${poem.id}/checkpoints`, {
+        const res = await fetch(apiUrl(`/api/poems/${poem.id}/checkpoints`), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.status === 401 || res.status === 403) {
@@ -591,7 +604,7 @@
       if (!token || !timelineForPoem?.id || !checkpointId) return;
       setStatusMessage('Publishing checkpoint...');
       try {
-        const res = await fetch(`http://localhost:3000/api/poems/${timelineForPoem.id}/publish-checkpoint`, {
+        const res = await fetch(apiUrl(`/api/poems/${timelineForPoem.id}/publish-checkpoint`), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -631,7 +644,7 @@
           if (!token) return;
           const targetId = hash.replace('#load-', '');
           try {
-            const res = await fetch('http://localhost:3000/api/poems/all', {
+            const res = await fetch(apiUrl('/api/poems/all'), {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {

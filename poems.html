@@ -268,6 +268,19 @@
   <script type="text/babel">
     const { useState, useEffect, useCallback } = React;
 
+    const OUVROIR_API_BASE = (() => {
+      const fromWindow = (window.OUVROIR_API_BASE || '').trim();
+      if (fromWindow) return fromWindow.replace(/\/+$/, '');
+
+      const fromStorage = (localStorage.getItem('ouvroir_api_base') || '').trim();
+      if (fromStorage) return fromStorage.replace(/\/+$/, '');
+
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      return isLocal ? 'http://localhost:3000' : '';
+    })();
+
+    const apiUrl = (path) => `${OUVROIR_API_BASE}${path}`;
+
     function parseJwt(token) {
       try {
         return JSON.parse(atob(token.split('.')[1]));
@@ -336,10 +349,10 @@
         }
         try {
           const [allRes, mineRes] = await Promise.all([
-            fetch('http://localhost:3000/api/poems/all', {
+            fetch(apiUrl('/api/poems/all'), {
               headers: { 'Authorization': `Bearer ${token}` }
             }),
-            fetch('http://localhost:3000/api/poems/mine', {
+            fetch(apiUrl('/api/poems/mine'), {
               headers: { 'Authorization': `Bearer ${token}` }
             })
           ]);
@@ -371,7 +384,7 @@
       const toggleStarPoem = async (poemId) => {
         if (!token) return;
         try {
-          const res = await fetch(`http://localhost:3000/api/poems/${poemId}/star`, {
+          const res = await fetch(apiUrl(`/api/poems/${poemId}/star`), {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` }
           });
@@ -404,7 +417,7 @@
         if (!token) return;
 
         try {
-          const res = await fetch(`http://localhost:3000/api/poems/${poemId}`, {
+          const res = await fetch(apiUrl(`/api/poems/${poemId}`), {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
           });
@@ -426,7 +439,7 @@
       const archiveMyPoem = async (poemId, archived = true) => {
         if (!token) return;
         try {
-          const res = await fetch(`http://localhost:3000/api/poems/${poemId}/archive`, {
+          const res = await fetch(apiUrl(`/api/poems/${poemId}/archive`), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -453,7 +466,7 @@
       const publishMyPoem = async (poemId) => {
         if (!token) return;
         try {
-          const res = await fetch(`http://localhost:3000/api/poems/${poemId}/publish`, {
+          const res = await fetch(apiUrl(`/api/poems/${poemId}/publish`), {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` }
           });
