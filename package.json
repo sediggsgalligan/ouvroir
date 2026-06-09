@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "better-sqlite3": "^11.7.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "google-auth-library": "^10.6.2"

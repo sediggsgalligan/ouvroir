@@ -4,6 +4,7 @@ const cors = require('cors');
 const { OAuth2Client } = require('google-auth-library');
 const fs = require('fs');
 const path = require('path');
+const Database = require('better-sqlite3');
 
 const app = express();
 app.use(express.json());
@@ -265,34 +266,106 @@ app.post('/api/generate', checkGoogleAuth, async (req, res) => {
   }
 });
 
-// Database utilities
+// Database utilities (SQLite)
 const dbDir = process.env.DISK_PATH || __dirname;
-const dbPath = path.join(dbDir, 'db.json');
+const sqlitePath = path.join(dbDir, 'ouvroir.sqlite');
+
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+const sqlite = new Database(sqlitePath);
+sqlite.pragma('journal_mode = WAL');
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS poems (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS constraints (
+    id TEXT PRIMARY KEY,
+    key TEXT UNIQUE,
+    data TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS stars (
+    userId TEXT NOT NULL,
+    constraintId TEXT NOT NULL,
+    PRIMARY KEY (userId, constraintId)
+  );
+
+  CREATE TABLE IF NOT EXISTS poem_stars (
+    userId TEXT NOT NULL,
+    poemId TEXT NOT NULL,
+    PRIMARY KEY (userId, poemId)
+  );
+`);
+
+function safeParseJson(text, fallback = null) {
+  try {
+    return JSON.parse(text);
+  } catch (_err) {
+    return fallback;
+  }
+}
 
 function readDb() {
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-  }
-
-  if (!fs.existsSync(dbPath)) {
-    const initDb = { poems: [], constraints: [], stars: [] };
-    fs.writeFileSync(dbPath, JSON.stringify(initDb, null, 2), 'utf8');
-    return initDb;
-  }
   try {
-    const data = fs.readFileSync(dbPath, 'utf8');
-    return JSON.parse(data);
+    const poems = sqlite.prepare('SELECT data FROM poems').all()
+      .map(r => safeParseJson(r.data, null))
+      .filter(Boolean);
+
+    const constraints = sqlite.prepare('SELECT data FROM constraints').all()
+      .map(r => safeParseJson(r.data, null))
+      .filter(Boolean);
+
+    const stars = sqlite.prepare('SELECT userId, constraintId FROM stars').all();
+    const poemStars = sqlite.prepare('SELECT userId, poemId FROM poem_stars').all();
+
+    return { poems, constraints, stars, poemStars };
   } catch (e) {
-    console.error('Error reading db.json:', e);
-    return { poems: [], constraints: [], stars: [] };
+    console.error('Error reading SQLite database:', e);
+    return { poems: [], constraints: [], stars: [], poemStars: [] };
   }
 }
 
 function writeDb(data) {
   try {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
+    const tx = sqlite.transaction((payload) => {
+      sqlite.prepare('DELETE FROM poems').run();
+      sqlite.prepare('DELETE FROM constraints').run();
+      sqlite.prepare('DELETE FROM stars').run();
+      sqlite.prepare('DELETE FROM poem_stars').run();
+
+      const insertPoem = sqlite.prepare('INSERT INTO poems (id, data) VALUES (?, ?)');
+      const insertConstraint = sqlite.prepare('INSERT INTO constraints (id, key, data) VALUES (?, ?, ?)');
+      const insertStar = sqlite.prepare('INSERT INTO stars (userId, constraintId) VALUES (?, ?)');
+      const insertPoemStar = sqlite.prepare('INSERT INTO poem_stars (userId, poemId) VALUES (?, ?)');
+
+      (payload.poems || []).forEach((p) => {
+        if (!p || !p.id) return;
+        insertPoem.run(p.id, JSON.stringify(p));
+      });
+
+      (payload.constraints || []).forEach((c) => {
+        if (!c || !c.id) return;
+        insertConstraint.run(c.id, c.key || null, JSON.stringify(c));
+      });
+
+      (payload.stars || []).forEach((s) => {
+        if (!s || !s.userId || !s.constraintId) return;
+        insertStar.run(s.userId, s.constraintId);
+      });
+
+      (payload.poemStars || []).forEach((s) => {
+        if (!s || !s.userId || !s.poemId) return;
+        insertPoemStar.run(s.userId, s.poemId);
+      });
+    });
+
+    tx(data || {});
   } catch (e) {
-    console.error('Error writing db.json:', e);
+    console.error('Error writing SQLite database:', e);
   }
 }
 
