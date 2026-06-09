@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>True Infini Hardened Vector Exporter</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 18px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        #preview-box {
+            margin-top: 25px;
+            border: 2px dashed #0071e3;
+            padding: 40px;
+            border-radius: 8px;
+            background: #ffffff;
+            overflow-x: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 180px;
+        }
+
+        #svg-container svg {
+            max-width: 100%;
+            height: auto;
+            background: #fafafa;
+            border: 1px solid #eee;
+        }
+
+        button {
+            background: #0071e3;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background: #0077ed;
+        }
+
+        button:disabled {
+            background: #aeaeae;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="card">
+        <h2>True Infini Interlocking Path Mask Exporter</h2>
+        <p>Bakes the font binary inside an internal Base64 stylesheet matrix container so layout configurations remain
+            permanently scalable.</p>
+
+        <div class="control-group">
+            <label for="font-file">1. Upload your Infini-Bold font file:</label>
+            <input type="file" id="font-file" accept=".otf,.ttf">
+        </div>
+
+        <div class="control-group">
+            <label for="text-input">2. Text:</label>
+            <input type="text" id="text-input" value="OUVROIR">
+        </div>
+
+        <button id="export-btn" disabled>Download Hardened Vector SVG</button>
+
+        <div id="preview-box">
+            <div id="svg-container">Upload font to generate vector preview...</div>
+        </div>
+    </div>
+
+    <script>
+        const fontFile = document.getElementById('font-file');
+        const textInput = document.getElementById('text-input');
+        const svgContainer = document.getElementById('svg-container');
+        const exportBtn = document.getElementById('export-btn');
+
+        let fontName = 'CustomInfiniRender';
+        let fontReady = false;
+        let base64FontString = "";
+
+        fontFile.addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const arrayBuffer = event.target.result;
+
+                // Process the binary font array buffer cleanly into an immutable Base64 data string
+                const bytes = new Uint8Array(arrayBuffer);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                base64FontString = btoa(binary);
+
+                const fontFace = new FontFace(fontName, arrayBuffer);
+                fontFace.load().then(function (loadedFace) {
+                    document.fonts.add(loadedFace);
+                    fontReady = true;
+                    exportBtn.disabled = false;
+                    generateHardenedSVG();
+                }).catch(function (err) {
+                    alert("Font loader error: " + err.message);
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        textInput.addEventListener('input', () => {
+            if (fontReady) generateHardenedSVG();
+        });
+
+        function generateHardenedSVG() {
+            if (!fontReady) return;
+
+            const text = textInput.value || " ";
+            const baseFontSize = 120;
+
+            // Calculate measurements inside a canvas to accurately size the viewport box
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.font = `${baseFontSize}px ${fontName}`;
+            canvas.style.fontFeatureSettings = '"dlig" on, "calt" on, "liga" on';
+
+            const metrics = ctx.measureText(text);
+            const textWidth = Math.ceil(metrics.width);
+            const ascent = Math.ceil(metrics.actualBoundingBoxAscent || (baseFontSize * 0.8));
+            const descent = Math.ceil(metrics.actualBoundingBoxDescent || (baseFontSize * 0.2));
+            const textHeight = ascent + descent;
+
+            const padding = 20;
+            const width = textWidth + (padding * 2);
+            const height = textHeight + (padding * 2);
+            const yPosition = ascent + padding;
+
+            // Compile a single independent vector document utilizing embedded Base64 components
+            const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <defs>
+        <style>
+            @font-face {
+                font-family: 'InfiniBake';
+                src: url(data:font/truetype;charset=utf-8;base64,${base64FontString}) format('truetype');
+            }
+            .ligature-engine {
+                font-family: 'InfiniBake', sans-serif;
+                font-size: ${baseFontSize}px;
+                font-variant-ligatures: discretionary-ligatures contextual;
+                font-feature-settings: "dlig" on, "calt" on, "liga" on;
+                text-rendering: optimizeLegibility;
+            }
+        </style>
+        <mask id="fontMask">
+            <!-- Everything white stays visible -->
+            <rect width="100%" height="100%" fill="#ffffff" />
+            <!-- The text acts as a cutout -->
+            <text x="${padding}" y="${yPosition}" fill="#000000" class="ligature-engine">${text}</text>
+        </mask>
+    </defs>
+    <!-- Background layer exposed through the mask, creating clean geometric cutouts -->
+    <rect width="100%" height="100%" fill="#000000" mask="url(#fontMask)" />
+</svg>`;
+
+            svgContainer.innerHTML = svgString;
+        }
+
+        exportBtn.addEventListener('click', function () {
+            const svgElement = svgContainer.querySelector('svg');
+            if (!svgElement) return;
+
+            const serializer = new XMLSerializer();
+            const svgString = serializer.serializeToString(svgElement);
+
+            const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${textInput.value.replace(/[^a-z0-9]/gi, '_')}_interlocked_paths.svg`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    </script>
+
+</body>
+
+</html>

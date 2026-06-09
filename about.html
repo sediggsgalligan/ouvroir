@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+  <title>About Ouvroir</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=Cormorant+Garamond:ital,wght@0,400..700;1,400..700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="ouvroir/ouvroir.css" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      background: #f0eee9;
+      color: #29261b;
+      font-family: "Public Sans", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .about-page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .about-header {
+      background: var(--paper);
+      border-bottom: 1px solid var(--rule);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .about-title {
+      margin: 0;
+      font-family: "EB Garamond", serif;
+      font-size: 28px;
+      font-weight: 500;
+    }
+    .about-content {
+      width: 100%;
+      max-width: 940px;
+      margin: 0 auto;
+      padding: 28px 24px 56px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .about-card {
+      border: 1px solid var(--rule);
+      background: var(--paper);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .about-card h2 {
+      margin: 0 0 8px 0;
+      font-family: "Cormorant Garamond", "EB Garamond", serif;
+      font-size: 30px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .about-card p {
+      margin: 0 0 10px;
+      line-height: 1.6;
+      color: var(--ink);
+    }
+    .muted { color: var(--mute); }
+    .example-card {
+      border-left: 2px solid var(--accent);
+      background: var(--field);
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 6px;
+    }
+    .example {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      margin: 0;
+      color: #3f2f18;
+    }
+    .btnrow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .small {
+      font-size: 12px;
+      color: var(--mute);
+      line-height: 1.5;
+    }
+    a { color: #7a2f1e; }
+  </style>
+</head>
+<body class="theme-press">
+  <div class="about-page">
+    <header class="about-header">
+      <div style="display:flex; align-items:baseline; gap:16px;">
+        <h1 class="about-title">Ouvroir</h1>
+        <span style="color:var(--mute); font-size:14px; font-style:italic;">About</span>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="ouv-btn ouv-btn-secondary" href="/" style="text-decoration:none; font-size:13px;">Open Editor</a>
+        <a class="ouv-btn ouv-btn-secondary" href="poems.html" style="text-decoration:none; font-size:13px;">Shared Poetry</a>
+      </div>
+    </header>
+
+    <main class="about-content">
+      <section class="about-card">
+        <h2>What Is Oulipo?</h2>
+        <p class="muted">Constraint-based poetry inspired by Oulipo.</p>
+        <p>Oulipo (Ouvroir de litterature potentielle) is a literary movement that uses formal constraints as creative engines. Instead of limiting writing, constraints can unlock surprising possibilities.</p>
+        <p>Learn more at the original Oulipo site: <a href="https://www.oulipo.net/" target="_blank" rel="noopener noreferrer">oulipo.net</a>.</p>
+      </section>
+
+      <section class="about-card">
+        <h2>Univocalism Example (Only A)</h2>
+        <div class="example-card">
+          <p class="example">A dark, stark stanza:
+A mad bard chants;
+A vast caravan drags past.</p>
+        </div>
+        <div class="btnrow">
+          <a class="ouv-btn ouv-btn-primary" href="/?constraints=univocalism-a" style="text-decoration:none;">Try It Yourself</a>
+        </div>
+      </section>
+
+      <section class="about-card">
+        <h2>Credits</h2>
+        <p>Built collaboratively by <a href="https://sophiadg.com" target="_blank" rel="noopener noreferrer">sophiadg.com</a> and <a href="https://itstorque.com" target="_blank" rel="noopener noreferrer">itstorque.com</a>.</p>
+        <p class="small">Logo typeface note: Infini was used for the Ouvroir logo. Infini is a public commission from the Centre national des arts plastiques (CNAP), released under a Creative Commons license. Details: <a href="https://www.cnap.fr/sites/infini/en/" target="_blank" rel="noopener noreferrer">cnap.fr/sites/infini/en</a>.</p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

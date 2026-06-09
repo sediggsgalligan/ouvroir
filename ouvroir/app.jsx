@@ -17,6 +17,17 @@
 
   const apiUrl = (path) => `${OUVROIR_API_BASE}${path}`;
 
+  function getInitialConstraintIdsFromUrl() {
+    const params = new URLSearchParams(window.location.search || '');
+    const raw = params.get('constraints') || params.get('constraint') || '';
+    if (!raw) return [];
+
+    return raw
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+
   const DEFAULTS = /*EDITMODE-BEGIN*/{
     "theme": "press",
     "creator": "dropdown",
@@ -914,9 +925,11 @@
 
   // ---- mount ----------------------------------------------------------
   const root = ReactDOM.createRoot(document.getElementById('root'));
+  const initialConstraintIds = getInitialConstraintIdsFromUrl();
+
   root.render(
     <div className="ouv-fullbleed">
-      <OuvroirApp />
+      <OuvroirApp initialConstraints={initialConstraintIds} />
     </div>
   );
 })();
