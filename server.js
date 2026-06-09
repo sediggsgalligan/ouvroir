@@ -270,7 +270,7 @@ app.post('/api/generate', checkGoogleAuth, async (req, res) => {
 const dbDir = process.env.DISK_PATH || __dirname;
 const sqlitePath = path.join(dbDir, 'ouvroir.sqlite');
 
-if (!fs.existsSync(dbDir)) {
+if (!process.env.DISK_PATH && !fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
