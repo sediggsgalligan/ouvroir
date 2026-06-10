@@ -303,7 +303,7 @@ const CONSTRAINT_SYSTEM_PROMPT = [
     '    "validateToken": "const s = token.toLowerCase(); for (let i = 1; i < s.length; i++) { if (s.charAt(i) === s.charAt(i - 1) && s.charAt(i) >= \'a\' && s.charAt(i) <= \'z\') return false; } return true;",',
     '    "validateStructure": "return \'valid\';"',
     '  }',
-    '}'
+    '}',
     'EXAMPLE 10 (Every line must end with the same word - Enter-Only Suffix Validation, baseline set by line one):',
     '{',
     '  "type": "script",',
