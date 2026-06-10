@@ -304,6 +304,16 @@ const CONSTRAINT_SYSTEM_PROMPT = [
     '    "validateStructure": "return \'valid\';"',
     '  }',
     '}'
+    'EXAMPLE 10 (Every line must end with the same word - Enter-Only Suffix Validation, baseline set by line one):',
+    '{',
+    '  "type": "script",',
+    '  "title": "Shared Final Word",',
+    '  "user_input": ["every line should end with the same word", "all lines must finish on the word that ends the first line"],',
+    '  "hooks": {',
+    '    "validateToken": "return true;",',
+    '    "validateStructure": "if (op !== \'enter\') return \'valid\'; const norm = (w) => w.toLowerCase().replace(/[^a-z]/g, \'\'); const lastWord = (arr) => { for (let i = arr.length - 1; i >= 0; i--) { const n = norm(arr[i]); if (n) return n; } return null; }; const cur = lastWord(words); if (!cur) return \'not-yet-satisfied\'; if (ctx.lineIdx === 0) return \'valid\'; const baseWords = (ctx.lines[0] || \'\').trim().split(/\\\\s+/).filter(Boolean); const required = lastWord(baseWords); if (!required) return \'valid\'; return cur === required ? \'valid\' : \'not-yet-satisfied\';"',
+    '  }',
+    '}'
 ].join('\n');
 
   try {
