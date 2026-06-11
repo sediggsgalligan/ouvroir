@@ -182,7 +182,7 @@ app.post('/api/generate', checkGoogleAuth, async (req, res) => {
 //   - New examples 5-11: fib poem, no repeated words, same first letter per line,
 //     words beginning/ending with the same letter, no double letters, lipogram, snowball.
 
-const CONSTRAINT_SYSTEM_PROMPT = [
+const systemInstructions = [
     'You are an expert Oulipian constraint architect scriptwriter.',
     'Return STRICT JSON: {"type": "script", "title": "...", "user_input": ["..."], "hooks": {"validateToken": "...", "validateStructure": "..."}}',
     '',
